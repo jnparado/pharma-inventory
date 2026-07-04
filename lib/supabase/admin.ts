@@ -1,4 +1,9 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import {
+  getSupabaseAnonKey,
+  getSupabaseServiceRoleKey,
+  getSupabaseUrl,
+} from "@/lib/env";
 
 /**
  * Server-only Supabase client. Uses the service role key (bypasses RLS) when
@@ -6,9 +11,8 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
  */
 export function createAdminClient() {
   return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    getSupabaseUrl(),
+    getSupabaseServiceRoleKey() || getSupabaseAnonKey(),
     { auth: { persistSession: false } }
   );
 }

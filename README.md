@@ -38,6 +38,22 @@ A pharmacy inventory system built with Next.js (App Router), TypeScript, Tailwin
 
    Open [http://localhost:3000](http://localhost:3000).
 
+## Deploy to Vercel
+
+1. Push the repo to GitHub and import it in [Vercel](https://vercel.com/new).
+2. In **Project Settings → Environment Variables**, add all three variables (same names as `.env.example`):
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+3. Enable each variable for **Production**, **Preview**, and **Development**.
+4. **Redeploy** the latest deployment (env vars only apply after a new build).
+
+Or sync from your local `.env.local` after `npx vercel login` and `npx vercel link`:
+
+```bash
+./scripts/set-vercel-env.sh
+```
+
 ## Project structure
 
 | Path | Purpose |
@@ -54,4 +70,4 @@ A pharmacy inventory system built with Next.js (App Router), TypeScript, Tailwin
 ## Notes
 
 - The database tables are currently unrestricted (no RLS). Add Supabase Auth and row-level security policies before using this in production.
-# pharma-inventory
+- Never commit real API keys. Keep secrets in `.env.local` and Vercel environment variables only.

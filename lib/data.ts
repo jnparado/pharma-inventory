@@ -1,3 +1,4 @@
+import { isSupabaseConfigured } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   BatchWithProduct,
@@ -8,16 +9,7 @@ import type {
   TransactionWithProduct,
 } from "@/lib/types";
 
-export function isSupabaseConfigured(): boolean {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  return (
-    url.startsWith("https://") &&
-    !url.includes("your-project-ref") &&
-    key.length > 20 &&
-    !key.startsWith("your-")
-  );
-}
+export { isSupabaseConfigured };
 
 export async function getProducts(): Promise<Product[]> {
   const supabase = createAdminClient();

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { isVercel } from "@/lib/env";
 import { expiryStatus } from "@/lib/utils";
 
 export function PageHeader({
@@ -133,34 +134,86 @@ export const buttonClass =
   "inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500/40";
 
 export function SetupNotice() {
+  const onVercel = isVercel();
+
   return (
     <div className="mx-auto max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-6">
       <h2 className="text-lg font-semibold text-amber-800">
         Supabase is not configured yet
       </h2>
-      <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-amber-800">
-        <li>
-          Create a project at{" "}
-          <a
-            href="https://supabase.com/dashboard"
-            className="underline"
-            target="_blank"
-            rel="noreferrer"
-          >
-            supabase.com/dashboard
-          </a>
-          .
-        </li>
-        <li>
-          In the SQL Editor, run the contents of{" "}
-          <code className="rounded bg-amber-100 px-1">supabase/schema.sql</code>{" "}
-          to create the tables and seed data.
-        </li>
-        <li>
-          Copy the Project URL and anon key from Settings &rarr; API into{" "}
-          <code className="rounded bg-amber-100 px-1">.env.local</code>.
-        </li>
-        <li>Restart the dev server.</li>
+      <p className="mt-2 text-sm text-amber-800">
+        {onVercel
+          ? "Add these environment variables in your Vercel project, then redeploy."
+          : "Add these values to .env.local, then restart the dev server."}
+      </p>
+      <div className="mt-3 rounded-lg bg-amber-100/60 px-4 py-3 font-mono text-xs text-amber-900">
+        <p>NEXT_PUBLIC_SUPABASE_URL</p>
+        <p>NEXT_PUBLIC_SUPABASE_ANON_KEY</p>
+        <p>SUPABASE_SERVICE_ROLE_KEY</p>
+      </div>
+      <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-amber-800">
+        {onVercel ? (
+          <>
+            <li>
+              Open{" "}
+              <a
+                href="https://vercel.com/dashboard"
+                className="underline"
+                target="_blank"
+                rel="noreferrer"
+              >
+                vercel.com/dashboard
+              </a>{" "}
+              &rarr; your project &rarr; <strong>Settings</strong> &rarr;{" "}
+              <strong>Environment Variables</strong>.
+            </li>
+            <li>
+              Add all three variables above. Copy values from{" "}
+              <a
+                href="https://supabase.com/dashboard"
+                className="underline"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Supabase
+              </a>{" "}
+              &rarr; Settings &rarr; API (Project URL, anon key, service role
+              key).
+            </li>
+            <li>
+              Enable them for <strong>Production</strong>,{" "}
+              <strong>Preview</strong>, and <strong>Development</strong>.
+            </li>
+            <li>
+              Redeploy: <strong>Deployments</strong> &rarr; latest deployment
+              &rarr; <strong>Redeploy</strong>.
+            </li>
+          </>
+        ) : (
+          <>
+            <li>
+              Copy{" "}
+              <code className="rounded bg-amber-100 px-1">.env.example</code> to{" "}
+              <code className="rounded bg-amber-100 px-1">.env.local</code>.
+            </li>
+            <li>
+              Fill in values from{" "}
+              <a
+                href="https://supabase.com/dashboard"
+                className="underline"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Supabase
+              </a>{" "}
+              &rarr; Settings &rarr; API.
+            </li>
+            <li>
+              Run <code className="rounded bg-amber-100 px-1">npm run dev</code>{" "}
+              again.
+            </li>
+          </>
+        )}
       </ol>
     </div>
   );
