@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "PharmaStock — Pharmacy Inventory",
   description:
-    "Pharmacy inventory management with batch tracking, FEFO stock control, and expiry monitoring.",
+    "Pharmacy inventory with AI forecasting, barcode scanning, multi-branch stock, prescription validation, and automated ordering.",
 };
 
 export default function RootLayout({
@@ -31,7 +31,7 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-slate-50 font-sans text-slate-900">
         <div className="flex min-h-screen">
-          <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col bg-slate-900 md:flex">
+          <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col overflow-y-auto bg-slate-900 md:flex">
             <div className="flex items-center gap-2.5 px-5 py-5">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-600 text-lg font-bold text-white">
                 +

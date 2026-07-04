@@ -40,3 +40,16 @@ export function isSupabaseConfigured(): boolean {
 export function isVercel(): boolean {
   return process.env.VERCEL === "1";
 }
+
+export function getXaiApiKey(): string {
+  return readEnv("XAI_API_KEY");
+}
+
+export function getGrokBaseUrl(): string {
+  return readEnv("GROK_BASE_URL") || "https://api.x.ai/v1";
+}
+
+export function isAiConfigured(): boolean {
+  const key = getXaiApiKey();
+  return key.length > 10 && !key.startsWith("your-");
+}

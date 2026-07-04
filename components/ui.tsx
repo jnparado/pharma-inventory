@@ -47,13 +47,14 @@ export function StatCard({
 }: {
   label: string;
   value: string | number;
-  tone?: "default" | "warning" | "danger" | "success";
+  tone?: "default" | "warning" | "danger" | "success" | "info";
 }) {
   const tones = {
     default: "text-slate-900",
     success: "text-teal-600",
     warning: "text-amber-600",
     danger: "text-red-600",
+    info: "text-blue-600",
   };
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

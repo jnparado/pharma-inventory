@@ -71,3 +71,75 @@ export type TransactionWithProduct = InventoryTransaction & {
   products: Pick<Product, "product_name" | "sku" | "unit"> | null;
   product_batches: Pick<ProductBatch, "batch_number"> | null;
 };
+
+export type Branch = {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  created_at: string | null;
+};
+
+export type StockTransfer = {
+  id: string;
+  from_branch: string | null;
+  to_branch: string | null;
+  status: string | null;
+  created_at: string | null;
+  from_branch_info?: Pick<Branch, "name"> | null;
+  to_branch_info?: Pick<Branch, "name"> | null;
+};
+
+export type PurchaseOrder = {
+  id: string;
+  supplier_id: string | null;
+  po_number: string;
+  status: string | null;
+  ordered_by: string | null;
+  created_at: string | null;
+  suppliers?: Pick<Supplier, "company_name"> | null;
+  purchase_order_items?: PurchaseOrderItem[];
+};
+
+export type PurchaseOrderItem = {
+  id: string;
+  purchase_order_id: string | null;
+  product_id: string | null;
+  quantity: number;
+  unit_cost: number | null;
+  products?: Pick<Product, "product_name" | "sku" | "unit"> | null;
+};
+
+export type Prescription = {
+  id: string;
+  customer_id: string | null;
+  doctor_name: string | null;
+  prescription_image_url: string | null;
+  uploaded_at: string | null;
+  status: string | null;
+};
+
+export type DemandForecast = {
+  product_id: string;
+  product_name: string;
+  sku: string;
+  category: string | null;
+  current_stock: number;
+  reorder_level: number;
+  avg_daily_sales: number;
+  predicted_30_day_demand: number;
+  recommended_reorder_qty: number;
+  reorder_by: string;
+  season_factor: number;
+  status: "ok" | "reorder" | "overstock" | "critical";
+  reason: string;
+};
+
+export type PrescriptionMatch = {
+  medicine: string;
+  in_stock: boolean;
+  available_qty: number;
+  product_id: string | null;
+  product_name: string | null;
+  alternatives: string[];
+};

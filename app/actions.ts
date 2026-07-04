@@ -5,7 +5,19 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function revalidateAll() {
-  for (const path of ["/", "/products", "/suppliers", "/stock", "/expiry"]) {
+  for (const path of [
+    "/",
+    "/products",
+    "/suppliers",
+    "/stock",
+    "/expiry",
+    "/forecast",
+    "/scan",
+    "/branches",
+    "/orders",
+    "/prescriptions",
+    "/assistant",
+  ]) {
     revalidatePath(path);
   }
 }
@@ -213,4 +225,178 @@ export async function stockOut(formData: FormData) {
 
   revalidateAll();
   redirect("/stock?success=Stock dispensed (FEFO)");
+}
+
+export async function createBranch(formData: FormData) {
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("branches").insert({
+    name: String(formData.get("name") ?? "").trim(),
+    address: String(formData.get("address") ?? "").trim() || null,
+    phone: String(formData.get("phone") ?? "").trim() || null,
+  });
+  if (error) redirect(`/branches?error=${encodeURIComponent(error.message)}`);
+  revalidateAll();
+  redirect("/branches?success=Branch added");
+}
+
+export async function createStockTransfer(formData: FormData) {
+  const supabase = createAdminClient();
+  const fromBranch = String(formData.get("from_branch") ?? "");
+  const toBranch = String(formData.get("to_branch") ?? "");
+  if (!fromBranch || !toBranch || fromBranch === toBranch) {
+    redirect("/branches?error=Select two different branches");
+  }
+  const { error } = await supabase.from("stock_transfers").insert({
+    from_branch: fromBranch,
+    to_branch: toBranch,
+    status: "pending",
+  });
+  if (error) redirect(`/branches?error=${encodeURIComponent(error.message)}`);
+  revalidateAll();
+  redirect("/branches?success=Transfer request created");
+}
+
+export async function updateTransferStatus(formData: FormData) {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("stock_transfers")
+    .update({ status: String(formData.get("status")) })
+    .eq("id", String(formData.get("id")));
+  if (error) redirect(`/branches?error=${encodeURIComponent(error.message)}`);
+  revalidateAll();
+  redirect("/branches?success=Transfer updated");
+}
+
+export async function generatePurchaseOrders() {
+  const supabase = createAdminClient();
+  const [productsRes, batchesRes, suppliersRes] = await Promise.all([
+    supabase
+      .from("products")
+      .select("id, product_name, sku, reorder_level, selling_price")
+      .order("product_name"),
+    supabase
+      .from("product_batches")
+      .select("product_id, quantity_remaining"),
+    supabase.from("suppliers").select("id").limit(1),
+  ]);
+
+  if (productsRes.error || batchesRes.error) {
+    redirect("/orders?error=Failed to load inventory data");
+  }
+
+  const stock = new Map<string, number>();
+  for (const b of batchesRes.data ?? []) {
+    if (!b.product_id) continue;
+    stock.set(
+      b.product_id,
+      (stock.get(b.product_id) ?? 0) + (b.quantity_remaining ?? 0)
+    );
+  }
+
+  const lowStock = (productsRes.data ?? []).filter((p) => {
+    const qty = stock.get(p.id) ?? 0;
+    return qty <= (p.reorder_level ?? 10);
+  });
+
+  if (lowStock.length === 0) {
+    redirect("/orders?error=No products need reordering");
+  }
+
+  const supplierId = suppliersRes.data?.[0]?.id ?? null;
+  const poNumber = `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+
+  const { data: po, error: poError } = await supabase
+    .from("purchase_orders")
+    .insert({
+      supplier_id: supplierId,
+      po_number: poNumber,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (poError) redirect(`/orders?error=${encodeURIComponent(poError.message)}`);
+
+  const items = lowStock.map((p) => {
+    const current = stock.get(p.id) ?? 0;
+    const reorder = p.reorder_level ?? 10;
+    return {
+      purchase_order_id: po.id,
+      product_id: p.id,
+      quantity: Math.max(reorder * 2 - current, reorder),
+      unit_cost: Number(p.selling_price) * 0.6,
+    };
+  });
+
+  const { error: itemsError } = await supabase
+    .from("purchase_order_items")
+    .insert(items);
+  if (itemsError)
+    redirect(`/orders?error=${encodeURIComponent(itemsError.message)}`);
+
+  revalidateAll();
+  redirect(`/orders?success=Auto PO ${poNumber} created (${items.length} items)`);
+}
+
+export async function updateOrderStatus(formData: FormData) {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("purchase_orders")
+    .update({ status: String(formData.get("status")) })
+    .eq("id", String(formData.get("id")));
+  if (error) redirect(`/orders?error=${encodeURIComponent(error.message)}`);
+  revalidateAll();
+  redirect("/orders?success=Order status updated");
+}
+
+export async function processPrescription(formData: FormData) {
+  const supabase = createAdminClient();
+  const text = String(formData.get("prescription_text") ?? "").trim();
+  const doctor = String(formData.get("doctor_name") ?? "").trim() || null;
+
+  if (!text) redirect("/prescriptions?error=Enter prescription text");
+
+  const { error } = await supabase.from("prescriptions").insert({
+    doctor_name: doctor,
+    status: "processed",
+    prescription_image_url: null,
+  });
+  if (error)
+    redirect(`/prescriptions?error=${encodeURIComponent(error.message)}`);
+
+  revalidateAll();
+  redirect(
+    `/prescriptions?success=Prescription saved&text=${encodeURIComponent(text)}`
+  );
+}
+
+export async function quickScanStockOut(formData: FormData) {
+  const code = String(formData.get("code") ?? "").trim();
+  const quantity = Number(formData.get("quantity") ?? 1);
+  if (!code) redirect("/scan?error=No barcode scanned");
+
+  const supabase = createAdminClient();
+  const { data: product } = await supabase
+    .from("products")
+    .select("id")
+    .eq("sku", code)
+    .maybeSingle();
+
+  let productId = product?.id;
+  if (!productId) {
+    const { data: byBarcode } = await supabase
+      .from("products")
+      .select("id")
+      .eq("barcode", code)
+      .maybeSingle();
+    productId = byBarcode?.id;
+  }
+
+  if (!productId) redirect(`/scan?error=Product not found for ${code}`);
+
+  const fd = new FormData();
+  fd.set("product_id", productId);
+  fd.set("quantity", String(quantity));
+  fd.set("reference_no", `Scan: ${code}`);
+  return stockOut(fd);
 }
