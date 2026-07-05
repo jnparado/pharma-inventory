@@ -10,6 +10,8 @@ import type {
   PurchaseOrder,
   SaleWithItems,
   SalesReportSummary,
+  User,
+  Notification,
 } from "@/lib/types";
 
 export { isSupabaseConfigured };
@@ -308,4 +310,25 @@ export async function getSalesReportSummary(): Promise<SalesReportSummary> {
     all_time_total: allTimeTotal,
     top_products,
   };
+}
+
+export async function getUsers(): Promise<User[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .order("full_name");
+  if (error) throw new Error(`Failed to load users: ${error.message}`);
+  return data;
+}
+
+export async function getNotifications(limit = 15): Promise<Notification[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`Failed to load notifications: ${error.message}`);
+  return data;
 }

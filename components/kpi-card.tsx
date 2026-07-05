@@ -3,9 +3,9 @@ import type { ReactNode } from "react";
 
 const tones = {
   blue: {
-    bg: "bg-indigo-50",
-    icon: "bg-indigo-100 text-indigo-600",
-    value: "text-indigo-700",
+    bg: "bg-teal-50",
+    icon: "bg-teal-100 text-teal-600",
+    value: "text-teal-700",
   },
   green: {
     bg: "bg-emerald-50",
@@ -53,7 +53,7 @@ export function KpiCard({
       </div>
       <Link
         href={href}
-        className="mt-4 inline-block text-xs font-medium text-slate-500 hover:text-indigo-600"
+        className="mt-4 inline-block text-xs font-medium text-slate-500 hover:text-teal-600"
       >
         Show Details →
       </Link>

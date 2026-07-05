@@ -49,3 +49,20 @@ export function suggestedDiscount(expiryDate: string | Date): number {
   if (status === "expiring-90") return 20;
   return 0;
 }
+
+export function getInitials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+export function formatDisplayName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length <= 1) return name;
+  const first = parts[0];
+  const lastInitial = parts[parts.length - 1][0]?.toUpperCase() ?? "";
+  return `${first} ${lastInitial}.`;
+}

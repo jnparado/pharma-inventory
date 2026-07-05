@@ -109,7 +109,7 @@ function Icon({ d }: { d: string }) {
   );
 }
 
-export function Sidebar() {
+function SidebarContent() {
   const pathname = usePathname();
   const [openGroups, setOpenGroups] = useState<string[]>(["Purchase", "Stock"]);
 
@@ -120,12 +120,12 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r border-slate-100 bg-white md:flex">
+    <>
       <div className="flex items-center gap-2 px-5 py-6">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-400 text-sm font-black text-white">
           Rx
         </div>
-        <span className="text-lg font-bold text-slate-800">PharmaStock</span>
+        <span className="text-lg font-bold text-white">PharmaStock</span>
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-6">
@@ -138,8 +138,8 @@ export function Sidebar() {
                 href={item.href}
                 className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                   active
-                    ? "bg-indigo-600 text-white shadow-sm shadow-indigo-200"
-                    : "text-slate-600 hover:bg-slate-50"
+                    ? "bg-indigo-600 text-white shadow-sm shadow-indigo-900/40"
+                    : "text-slate-400 hover:bg-slate-800/70 hover:text-white"
                 }`}
               >
                 <Icon d={item.icon} />
@@ -160,8 +160,8 @@ export function Sidebar() {
                 onClick={() => toggleGroup(item.label)}
                 className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                   groupActive
-                    ? "text-indigo-600"
-                    : "text-slate-600 hover:bg-slate-50"
+                    ? "text-indigo-400"
+                    : "text-slate-400 hover:bg-slate-800/70 hover:text-white"
                 }`}
               >
                 <span className="flex items-center gap-3">
@@ -183,15 +183,15 @@ export function Sidebar() {
                 </svg>
               </button>
               {expanded && (
-                <div className="ml-4 mt-0.5 space-y-0.5 border-l border-slate-100 pl-3">
+                <div className="ml-4 mt-0.5 space-y-0.5 border-l border-slate-700 pl-3">
                   {item.children.map((child) => (
                     <Link
                       key={child.href}
                       href={child.href}
-                      className={`block rounded-lg px-3 py-2 text-sm ${
+                      className={`block rounded-lg px-3 py-2 text-sm transition-colors ${
                         isActive(pathname, child.href)
-                          ? "font-medium text-indigo-600"
-                          : "text-slate-500 hover:text-slate-800"
+                          ? "font-medium text-indigo-400"
+                          : "text-slate-500 hover:text-slate-200"
                       }`}
                     >
                       {child.label}
@@ -203,14 +203,22 @@ export function Sidebar() {
           );
         })}
       </nav>
+    </>
+  );
+}
+
+export function Sidebar() {
+  return (
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r border-slate-800 bg-[#10172A] md:flex">
+      <SidebarContent />
     </aside>
   );
 }
 
 export function MobileNav() {
   return (
-    <div className="border-b border-slate-100 bg-white px-3 py-2 md:hidden">
-      <Sidebar />
+    <div className="max-h-64 overflow-y-auto border-b border-slate-800 bg-[#10172A] md:hidden">
+      <SidebarContent />
     </div>
   );
 }

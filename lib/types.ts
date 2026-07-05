@@ -144,6 +144,24 @@ export type PrescriptionMatch = {
   alternatives: string[];
 };
 
+export type User = {
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+  branch_id: string | null;
+  created_at: string | null;
+};
+
+export type Notification = {
+  id: string;
+  type: string | null;
+  title: string;
+  message: string | null;
+  is_read: boolean | null;
+  created_at: string | null;
+};
+
 export type Sale = {
   id: string;
   invoice_number: string;

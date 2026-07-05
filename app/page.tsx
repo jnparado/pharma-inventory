@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 const orderStatusTone: Record<string, string> = {
   pending: "bg-amber-100 text-amber-700",
-  approved: "bg-indigo-100 text-indigo-700",
+  approved: "bg-teal-100 text-teal-700",
   delivered: "bg-sky-100 text-sky-700",
   cancelled: "bg-red-100 text-red-700",
 };
@@ -84,7 +84,7 @@ export default async function DashboardPage() {
             </h3>
             <Link
               href="/expiry"
-              className="text-xs font-medium text-indigo-600 hover:underline"
+              className="text-xs font-medium text-teal-600 hover:underline"
             >
               See All
             </Link>
@@ -135,7 +135,7 @@ export default async function DashboardPage() {
             </h3>
             <Link
               href="/orders"
-              className="text-xs font-medium text-indigo-600 hover:underline"
+              className="text-xs font-medium text-teal-600 hover:underline"
             >
               See All
             </Link>

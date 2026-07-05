@@ -57,7 +57,7 @@ export function DashboardCharts({
                     key={entry.month}
                     fill={
                       i === new Date().getMonth()
-                        ? "#6366f1"
+                        ? "#0d9488"
                         : "#86efac"
                     }
                   />
