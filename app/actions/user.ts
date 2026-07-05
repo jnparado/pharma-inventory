@@ -14,6 +14,13 @@ export async function setActiveUser(userId: string) {
   revalidatePath("/", "layout");
 }
 
+export async function setActiveUserFromForm(formData: FormData) {
+  const userId = String(formData.get("user_id") ?? "");
+  if (!userId) return;
+  await setActiveUser(userId);
+  revalidatePath("/settings");
+}
+
 export async function markNotificationRead(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) return;
