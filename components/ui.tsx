@@ -21,19 +21,22 @@ export function Card({
   title,
   children,
   className = "",
+  action,
 }: {
   title?: string;
   children: ReactNode;
   className?: string;
+  action?: ReactNode;
 }) {
   return (
     <section
-      className={`rounded-xl border border-slate-200 bg-white shadow-sm ${className}`}
+      className={`rounded-2xl border border-slate-100 bg-white shadow-sm ${className}`}
     >
       {title && (
-        <h2 className="border-b border-slate-100 px-5 py-3.5 text-sm font-semibold text-slate-700">
-          {title}
-        </h2>
+        <div className="flex items-center justify-between border-b border-slate-50 px-5 py-3.5">
+          <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+          {action}
+        </div>
       )}
       <div className="p-5">{children}</div>
     </section>
