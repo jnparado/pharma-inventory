@@ -31,6 +31,21 @@ const sections = [
     ],
   },
   {
+    title: "Sales",
+    links: [
+      {
+        href: "/pos",
+        label: "POS",
+        icon: "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z",
+      },
+      {
+        href: "/reports",
+        label: "Sales Report",
+        icon: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+      },
+    ],
+  },
+  {
     title: "Operations",
     links: [
       {

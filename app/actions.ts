@@ -17,6 +17,8 @@ function revalidateAll() {
     "/orders",
     "/prescriptions",
     "/assistant",
+    "/pos",
+    "/reports",
   ]) {
     revalidatePath(path);
   }

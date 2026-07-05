@@ -143,3 +143,39 @@ export type PrescriptionMatch = {
   product_name: string | null;
   alternatives: string[];
 };
+
+export type Sale = {
+  id: string;
+  invoice_number: string;
+  customer_id: string | null;
+  cashier_id: string | null;
+  total_amount: number;
+  payment_method: string | null;
+  created_at: string | null;
+};
+
+export type SaleItem = {
+  id: string;
+  sale_id: string | null;
+  product_id: string | null;
+  batch_id: string | null;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  products?: Pick<Product, "product_name" | "sku" | "unit"> | null;
+};
+
+export type SaleWithItems = Sale & {
+  sale_items: SaleItem[];
+};
+
+export type SalesReportSummary = {
+  today_total: number;
+  today_count: number;
+  week_total: number;
+  week_count: number;
+  month_total: number;
+  month_count: number;
+  all_time_total: number;
+  top_products: { product_name: string; sku: string; qty_sold: number; revenue: number }[];
+};
