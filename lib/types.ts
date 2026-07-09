@@ -8,6 +8,15 @@ export type Supplier = {
   created_at: string | null;
 };
 
+export type Customer = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  created_at: string | null;
+};
+
 export type Category = {
   id: string;
   name: string;
@@ -153,6 +162,12 @@ export type User = {
   created_at: string | null;
 };
 
+export type UserRole =
+  | "admin"
+  | "manager"
+  | "pharmacist"
+  | "cashier";
+
 export type Notification = {
   id: string;
   type: string | null;
@@ -165,6 +180,7 @@ export type Notification = {
 export type Sale = {
   id: string;
   invoice_number: string;
+  receipt_number: string | null;
   customer_id: string | null;
   cashier_id: string | null;
   total_amount: number;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/env";
+import { issueReceiptForSale } from "@/lib/receipt";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { deductStockFefo, generateInvoiceNumber } from "@/lib/pos";
 
@@ -67,9 +68,13 @@ export async function POST(req: Request) {
     }
 
     const paid = body.amount_paid ?? total;
+    const receipt = await issueReceiptForSale(supabase, sale.id);
+
     return NextResponse.json({
       success: true,
+      sale_id: sale.id,
       invoice_number: invoiceNumber,
+      receipt_number: receipt.receiptNumber,
       total,
       change: Math.max(0, paid - total),
     });

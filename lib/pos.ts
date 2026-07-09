@@ -5,6 +5,26 @@ export type FefoAllocation = {
   quantity: number;
 };
 
+/** Non-expired stock available for a product (FEFO-eligible batches). */
+export async function getAvailableStock(
+  supabase: SupabaseClient,
+  productId: string
+): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: batches, error } = await supabase
+    .from("product_batches")
+    .select("quantity_remaining")
+    .eq("product_id", productId)
+    .gt("quantity_remaining", 0)
+    .or(`expiry_date.gte.${today},expiry_date.is.null`);
+
+  if (error) throw new Error(error.message);
+  return (batches ?? []).reduce(
+    (sum, b) => sum + (b.quantity_remaining ?? 0),
+    0
+  );
+}
+
 /** Deduct stock using FEFO and log inventory transactions. Returns batch allocations. */
 export async function deductStockFefo(
   supabase: SupabaseClient,

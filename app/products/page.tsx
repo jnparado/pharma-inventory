@@ -1,9 +1,17 @@
-import { createProduct, deleteProduct } from "@/app/actions";
+import Link from "next/link";
+import {
+  createProduct,
+  deleteProduct,
+  updateProduct,
+} from "@/app/actions";
 import {
   getCategories,
+  getProductById,
   getProductsWithStock,
   isSupabaseConfigured,
 } from "@/lib/data";
+import { canManageRecords } from "@/lib/permissions";
+import { getActiveUser } from "@/lib/user-session";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   Badge,
@@ -20,9 +28,9 @@ import {
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ success?: string; error?: string }>;
+  searchParams: Promise<{ success?: string; error?: string; edit?: string }>;
 }) {
-  const { success, error } = await searchParams;
+  const { success, error, edit } = await searchParams;
 
   if (!isSupabaseConfigured()) {
     return (
@@ -33,10 +41,14 @@ export default async function ProductsPage({
     );
   }
 
-  const [products, categories] = await Promise.all([
+  const [products, categories, activeUser, editing] = await Promise.all([
     getProductsWithStock(),
     getCategories(),
+    getActiveUser(),
+    edit ? getProductById(edit) : Promise.resolve(null),
   ]);
+
+  const isAdmin = canManageRecords(activeUser);
 
   const defaultCategories = [
     "Analgesic",
@@ -72,6 +84,175 @@ export default async function ProductsPage({
       />
       <FlashMessage success={success} error={error} />
 
+      {!isAdmin && (
+        <p className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          View-only mode. Contact an admin to add or edit products.
+        </p>
+      )}
+
+      {isAdmin && editing && (
+        <Card title="Edit product" className="mb-6">
+          <form action={updateProduct} className="grid gap-4 sm:grid-cols-3">
+            <input type="hidden" name="id" value={editing.id} />
+            <div>
+              <label className={labelClass} htmlFor="edit_product_name">
+                Product name <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="edit_product_name"
+                name="product_name"
+                required
+                defaultValue={editing.product_name}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="edit_generic_name">
+                Generic name
+              </label>
+              <input
+                id="edit_generic_name"
+                name="generic_name"
+                defaultValue={editing.generic_name ?? ""}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="edit_brand_name">
+                Brand name
+              </label>
+              <input
+                id="edit_brand_name"
+                name="brand_name"
+                defaultValue={editing.brand_name ?? ""}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="edit_sku">
+                SKU <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="edit_sku"
+                name="sku"
+                required
+                defaultValue={editing.sku}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="edit_barcode">
+                Barcode
+              </label>
+              <input
+                id="edit_barcode"
+                name="barcode"
+                defaultValue={editing.barcode ?? ""}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="edit_category">
+                Category <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="edit_category"
+                name="category"
+                required
+                defaultValue={
+                  categories.find((c) => c.id === editing.category_id)?.name ??
+                  ""
+                }
+                className={inputClass}
+              >
+                <option value="" disabled>
+                  Select a category…
+                </option>
+                {categoryOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="edit_unit">
+                Unit <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="edit_unit"
+                name="unit"
+                required
+                defaultValue={editing.unit ?? "pcs"}
+                className={inputClass}
+              >
+                {unitOptions.map((unit) => (
+                  <option key={unit} value={unit}>
+                    {unit}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="edit_selling_price">
+                Selling price (&#8369;) <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="edit_selling_price"
+                name="selling_price"
+                type="number"
+                step="0.01"
+                min={0}
+                required
+                defaultValue={editing.selling_price}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="edit_reorder_level">
+                Reorder level <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="edit_reorder_level"
+                name="reorder_level"
+                type="number"
+                min={0}
+                required
+                defaultValue={editing.reorder_level ?? 10}
+                className={inputClass}
+              />
+            </div>
+            <div className="flex items-center gap-2 pt-5">
+              <input
+                id="edit_requires_prescription"
+                name="requires_prescription"
+                type="checkbox"
+                defaultChecked={!!editing.requires_prescription}
+                className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+              />
+              <label
+                htmlFor="edit_requires_prescription"
+                className="text-sm text-slate-600"
+              >
+                Requires prescription (Rx)
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2 sm:col-span-3">
+              <button type="submit" className={buttonClass}>
+                Save changes
+              </button>
+              <Link
+                href="/products"
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </Link>
+            </div>
+          </form>
+        </Card>
+      )}
+
+      {isAdmin && !editing && (
       <Card title="Add product" className="mb-6">
         <form action={createProduct} className="grid gap-4 sm:grid-cols-3">
           <div>
@@ -117,6 +298,17 @@ export default async function ProductsPage({
               name="sku"
               required
               placeholder="MED-0009"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="barcode">
+              Barcode
+            </label>
+            <input
+              id="barcode"
+              name="barcode"
+              placeholder="Scan or enter barcode"
               className={inputClass}
             />
           </div>
@@ -212,6 +404,7 @@ export default async function ProductsPage({
           </div>
         </form>
       </Card>
+      )}
 
       <Card title={`Catalog (${products.length})`}>
         {products.length === 0 ? (
@@ -281,16 +474,28 @@ export default async function ProductsPage({
                     <td className="py-3 text-slate-500">
                       {p.nearest_expiry ? formatDate(p.nearest_expiry) : "—"}
                     </td>
-                    <td className="py-3 text-right">
-                      <form action={deleteProduct}>
-                        <input type="hidden" name="id" value={p.id} />
-                        <button
-                          type="submit"
-                          className="text-xs font-medium text-red-500 hover:underline"
-                        >
-                          Delete
-                        </button>
-                      </form>
+                    <td className="py-3 text-right whitespace-nowrap">
+                      {isAdmin ? (
+                        <>
+                          <Link
+                            href={`/products?edit=${p.id}`}
+                            className="mr-3 text-xs font-medium text-teal-600 hover:underline"
+                          >
+                            Edit
+                          </Link>
+                          <form action={deleteProduct} className="inline">
+                            <input type="hidden" name="id" value={p.id} />
+                            <button
+                              type="submit"
+                              className="text-xs font-medium text-red-500 hover:underline"
+                            >
+                              Delete
+                            </button>
+                          </form>
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                   </tr>
                 ))}

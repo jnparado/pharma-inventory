@@ -6,6 +6,7 @@ import type {
   Product,
   ProductWithStock,
   Supplier,
+  Customer,
   TransactionWithProduct,
   PurchaseOrder,
   SaleWithItems,
@@ -91,6 +92,60 @@ export async function getSuppliers(): Promise<Supplier[]> {
     .select("*")
     .order("company_name");
   if (error) throw new Error(`Failed to load suppliers: ${error.message}`);
+  return data;
+}
+
+export async function getCustomers(): Promise<Customer[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .order("full_name");
+  if (error) throw new Error(`Failed to load customers: ${error.message}`);
+  return data;
+}
+
+export async function getProductById(id: string): Promise<Product | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select("*, categories(name)")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load product: ${error.message}`);
+  return data;
+}
+
+export async function getSupplierById(id: string): Promise<Supplier | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("suppliers")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load supplier: ${error.message}`);
+  return data;
+}
+
+export async function getCustomerById(id: string): Promise<Customer | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load customer: ${error.message}`);
+  return data;
+}
+
+export async function getUserById(id: string): Promise<User | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load user: ${error.message}`);
   return data;
 }
 
@@ -240,6 +295,30 @@ export async function getSales(limit = 100): Promise<SaleWithItems[]> {
     .limit(limit);
   if (error) throw new Error(`Failed to load sales: ${error.message}`);
   return data as unknown as SaleWithItems[];
+}
+
+export async function getSaleById(id: string): Promise<SaleWithItems | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("sales")
+    .select("*, sale_items(*, products(product_name, sku, unit))")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load sale: ${error.message}`);
+  return data as unknown as SaleWithItems | null;
+}
+
+export async function getSaleByInvoice(
+  invoiceNumber: string
+): Promise<SaleWithItems | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("sales")
+    .select("*, sale_items(*, products(product_name, sku, unit))")
+    .eq("invoice_number", invoiceNumber)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load sale: ${error.message}`);
+  return data as unknown as SaleWithItems | null;
 }
 
 export async function getSalesReportSummary(): Promise<SalesReportSummary> {

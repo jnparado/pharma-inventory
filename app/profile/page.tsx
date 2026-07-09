@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { updateUserProfile } from "@/app/actions/user";
+import { RoleSelect } from "@/components/role-select";
 import {
   Badge,
   Card,
@@ -11,6 +12,7 @@ import {
   labelClass,
 } from "@/components/ui";
 import { isSupabaseConfigured } from "@/lib/data";
+import { isAdmin } from "@/lib/permissions";
 import { getActiveUser } from "@/lib/user-session";
 import { formatDateTime, getInitials } from "@/lib/utils";
 
@@ -31,6 +33,7 @@ export default async function ProfilePage({
   }
 
   const user = await getActiveUser();
+  const userIsAdmin = isAdmin(user);
 
   if (!user) {
     return (
@@ -116,18 +119,19 @@ export default async function ProfilePage({
               <label className={labelClass} htmlFor="role">
                 Role
               </label>
-              <select
-                id="role"
-                name="role"
-                required
-                defaultValue={user.role}
-                className={inputClass}
-              >
-                <option value="admin">Admin</option>
-                <option value="pharmacist">Pharmacist</option>
-                <option value="cashier">Cashier</option>
-                <option value="manager">Manager</option>
-              </select>
+              {userIsAdmin ? (
+                <RoleSelect id="role" defaultValue={user.role} />
+              ) : (
+                <>
+                  <input type="hidden" name="role" value={user.role} />
+                  <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm capitalize text-slate-700">
+                    {user.role}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Only admins can change roles. Contact your administrator.
+                  </p>
+                </>
+              )}
             </div>
             <button type="submit" className={buttonClass}>
               Save changes

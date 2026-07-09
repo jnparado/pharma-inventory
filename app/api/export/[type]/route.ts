@@ -1,21 +1,31 @@
 import { NextResponse } from "next/server";
 import {
   getBatches,
+  getCustomers,
   getProductsWithStock,
   getPurchaseOrders,
   getSales,
+  getSuppliers,
   getTransactions,
   isSupabaseConfigured,
 } from "@/lib/data";
-import { csvDownloadResponse, jsonDownloadResponse, toCsv } from "@/lib/export";
-import { formatDateTime } from "@/lib/utils";
+import {
+  csvDownloadResponse,
+  excelCsvDownloadResponse,
+  jsonDownloadResponse,
+  toCsv,
+} from "@/lib/export";
+import { formatDate, formatDateTime } from "@/lib/utils";
 
 type ExportType =
   | "sales"
   | "products"
+  | "inventory"
+  | "batches"
+  | "customers"
+  | "suppliers"
   | "transactions"
-  | "orders"
-  | "inventory";
+  | "orders";
 
 export async function GET(
   req: Request,
@@ -35,13 +45,18 @@ export async function GET(
       case "sales":
         return exportSales(format);
       case "products":
-        return exportProducts(format);
+      case "inventory":
+        return exportInventory(format);
+      case "batches":
+        return exportInventoryBatches(format);
+      case "customers":
+        return exportCustomers(format);
+      case "suppliers":
+        return exportSuppliers(format);
       case "transactions":
         return exportTransactions(format);
       case "orders":
         return exportOrders(format);
-      case "inventory":
-        return exportInventory(format);
       default:
         return NextResponse.json({ error: "Unknown export type" }, { status: 404 });
     }
@@ -107,10 +122,11 @@ async function exportSales(format: string) {
   );
 }
 
-async function exportProducts(format: string) {
+async function exportInventory(format: string) {
   const products = await getProductsWithStock();
   const rows = products.map((p) => [
     p.sku,
+    p.barcode ?? "",
     p.product_name,
     p.generic_name ?? "",
     p.brand_name ?? "",
@@ -119,24 +135,82 @@ async function exportProducts(format: string) {
     p.selling_price,
     p.total_stock,
     p.reorder_level ?? 0,
+    p.nearest_expiry ? formatDate(p.nearest_expiry) : "",
+    p.requires_prescription ? "Yes" : "No",
   ]);
 
   const headers = [
     "SKU",
-    "Product",
-    "Generic",
+    "Barcode",
+    "Product Name",
+    "Generic Name",
     "Brand",
     "Category",
     "Unit",
-    "Price",
-    "Stock",
+    "Selling Price (PHP)",
+    "Stock Qty",
     "Reorder Level",
+    "Nearest Expiry",
+    "Prescription Required",
   ];
 
   if (format === "json") {
-    return jsonDownloadResponse("products.json", products);
+    return jsonDownloadResponse("inventory-list.json", products);
   }
-  return csvDownloadResponse(`products-${dateStamp()}.csv`, toCsv(headers, rows));
+  return excelCsvDownloadResponse(
+    `inventory-list-${dateStamp()}.csv`,
+    toCsv(headers, rows)
+  );
+}
+
+async function exportCustomers(format: string) {
+  const customers = await getCustomers();
+  const rows = customers.map((c) => [
+    c.full_name ?? "",
+    c.email ?? "",
+    c.phone ?? "",
+    c.address ?? "",
+    c.created_at ? formatDateTime(c.created_at) : "",
+  ]);
+
+  const headers = ["Full Name", "Email", "Phone", "Address", "Registered"];
+
+  if (format === "json") {
+    return jsonDownloadResponse("customers-list.json", customers);
+  }
+  return excelCsvDownloadResponse(
+    `customers-list-${dateStamp()}.csv`,
+    toCsv(headers, rows)
+  );
+}
+
+async function exportSuppliers(format: string) {
+  const suppliers = await getSuppliers();
+  const rows = suppliers.map((s) => [
+    s.company_name,
+    s.contact_person ?? "",
+    s.phone ?? "",
+    s.email ?? "",
+    s.address ?? "",
+    s.created_at ? formatDateTime(s.created_at) : "",
+  ]);
+
+  const headers = [
+    "Company Name",
+    "Contact Person",
+    "Phone",
+    "Email",
+    "Address",
+    "Added",
+  ];
+
+  if (format === "json") {
+    return jsonDownloadResponse("suppliers-list.json", suppliers);
+  }
+  return excelCsvDownloadResponse(
+    `suppliers-list-${dateStamp()}.csv`,
+    toCsv(headers, rows)
+  );
 }
 
 async function exportTransactions(format: string) {
@@ -206,7 +280,7 @@ async function exportOrders(format: string) {
   );
 }
 
-async function exportInventory(format: string) {
+async function exportInventoryBatches(format: string) {
   const batches = await getBatches();
   const rows = batches.map((b) => [
     b.products?.product_name ?? "",
@@ -231,7 +305,7 @@ async function exportInventory(format: string) {
   if (format === "json") {
     return jsonDownloadResponse("inventory-batches.json", batches);
   }
-  return csvDownloadResponse(
+  return excelCsvDownloadResponse(
     `inventory-batches-${dateStamp()}.csv`,
     toCsv(headers, rows)
   );

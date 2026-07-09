@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { DownloadPanel } from "@/components/download-panel";
 import {
   getSales,
   getSalesReportSummary,
   isSupabaseConfigured,
 } from "@/lib/data";
+import { displayReceiptNumber } from "@/lib/receipt";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import {
   Badge,
@@ -106,9 +108,10 @@ export default async function ReportsPage() {
           <EmptyState message="No sales recorded yet." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase text-slate-400">
+                  <th className="pb-2">Receipt</th>
                   <th className="pb-2">Invoice</th>
                   <th className="pb-2">Date</th>
                   <th className="pb-2">Items</th>
@@ -119,7 +122,17 @@ export default async function ReportsPage() {
               <tbody className="divide-y divide-slate-100">
                 {sales.map((sale) => (
                   <tr key={sale.id}>
-                    <td className="py-3 font-mono text-xs">{sale.invoice_number}</td>
+                    <td className="py-3">
+                      <Link
+                        href={`/receipt/${sale.id}`}
+                        className="font-mono text-xs font-medium text-teal-600 hover:underline"
+                      >
+                        {displayReceiptNumber(sale)}
+                      </Link>
+                    </td>
+                    <td className="py-3 font-mono text-xs text-slate-500">
+                      {sale.invoice_number}
+                    </td>
                     <td className="py-3 text-slate-500">
                       {sale.created_at
                         ? formatDateTime(sale.created_at)

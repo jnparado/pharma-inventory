@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { requireAdmin } from "@/lib/admin-guard";
+import { convertPurchaseOrderToSalesInvoice } from "@/lib/purchase-order-invoice";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function revalidateAll() {
@@ -9,6 +11,10 @@ function revalidateAll() {
     "/",
     "/products",
     "/suppliers",
+    "/customers",
+    "/users",
+    "/settings",
+    "/profile",
     "/stock",
     "/expiry",
     "/forecast",
@@ -49,6 +55,7 @@ async function resolveCategoryId(
 }
 
 export async function createProduct(formData: FormData) {
+  await requireAdmin("/products");
   const supabase = createAdminClient();
 
   let categoryId: string | null = null;
@@ -66,6 +73,7 @@ export async function createProduct(formData: FormData) {
     generic_name: String(formData.get("generic_name") ?? "").trim() || null,
     brand_name: String(formData.get("brand_name") ?? "").trim() || null,
     sku: String(formData.get("sku") ?? "").trim(),
+    barcode: String(formData.get("barcode") ?? "").trim() || null,
     category_id: categoryId,
     unit: String(formData.get("unit") ?? "pcs").trim() || "pcs",
     selling_price: Number(formData.get("selling_price") ?? 0),
@@ -77,7 +85,45 @@ export async function createProduct(formData: FormData) {
   redirect("/products?success=Product added");
 }
 
+export async function updateProduct(formData: FormData) {
+  await requireAdmin("/products");
+  const supabase = createAdminClient();
+  const id = String(formData.get("id") ?? "");
+  if (!id) redirect("/products?error=Missing product id");
+
+  let categoryId: string | null = null;
+  try {
+    categoryId = await resolveCategoryId(
+      supabase,
+      String(formData.get("category") ?? "")
+    );
+  } catch (e) {
+    redirect(`/products?error=${encodeURIComponent((e as Error).message)}`);
+  }
+
+  const { error } = await supabase
+    .from("products")
+    .update({
+      product_name: String(formData.get("product_name") ?? "").trim(),
+      generic_name: String(formData.get("generic_name") ?? "").trim() || null,
+      brand_name: String(formData.get("brand_name") ?? "").trim() || null,
+      sku: String(formData.get("sku") ?? "").trim(),
+      barcode: String(formData.get("barcode") ?? "").trim() || null,
+      category_id: categoryId,
+      unit: String(formData.get("unit") ?? "pcs").trim() || "pcs",
+      selling_price: Number(formData.get("selling_price") ?? 0),
+      reorder_level: Number(formData.get("reorder_level") ?? 10),
+      requires_prescription: formData.get("requires_prescription") === "on",
+    })
+    .eq("id", id);
+
+  if (error) redirect(`/products?error=${encodeURIComponent(error.message)}`);
+  revalidateAll();
+  redirect("/products?success=Product updated");
+}
+
 export async function deleteProduct(formData: FormData) {
+  await requireAdmin("/products");
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("products")
@@ -89,6 +135,7 @@ export async function deleteProduct(formData: FormData) {
 }
 
 export async function createSupplier(formData: FormData) {
+  await requireAdmin("/suppliers");
   const supabase = createAdminClient();
   const { error } = await supabase.from("suppliers").insert({
     company_name: String(formData.get("company_name") ?? "").trim(),
@@ -102,7 +149,31 @@ export async function createSupplier(formData: FormData) {
   redirect("/suppliers?success=Supplier added");
 }
 
+export async function updateSupplier(formData: FormData) {
+  await requireAdmin("/suppliers");
+  const supabase = createAdminClient();
+  const id = String(formData.get("id") ?? "");
+  if (!id) redirect("/suppliers?error=Missing supplier id");
+
+  const { error } = await supabase
+    .from("suppliers")
+    .update({
+      company_name: String(formData.get("company_name") ?? "").trim(),
+      contact_person:
+        String(formData.get("contact_person") ?? "").trim() || null,
+      phone: String(formData.get("phone") ?? "").trim() || null,
+      email: String(formData.get("email") ?? "").trim() || null,
+      address: String(formData.get("address") ?? "").trim() || null,
+    })
+    .eq("id", id);
+
+  if (error) redirect(`/suppliers?error=${encodeURIComponent(error.message)}`);
+  revalidateAll();
+  redirect("/suppliers?success=Supplier updated");
+}
+
 export async function deleteSupplier(formData: FormData) {
+  await requireAdmin("/suppliers");
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("suppliers")
@@ -111,6 +182,58 @@ export async function deleteSupplier(formData: FormData) {
   if (error) redirect(`/suppliers?error=${encodeURIComponent(error.message)}`);
   revalidateAll();
   redirect("/suppliers?success=Supplier deleted");
+}
+
+export async function createCustomer(formData: FormData) {
+  await requireAdmin("/customers");
+  const supabase = createAdminClient();
+  const full_name = String(formData.get("full_name") ?? "").trim();
+  if (!full_name) redirect("/customers?error=Full name is required");
+
+  const { error } = await supabase.from("customers").insert({
+    full_name,
+    email: String(formData.get("email") ?? "").trim() || null,
+    phone: String(formData.get("phone") ?? "").trim() || null,
+    address: String(formData.get("address") ?? "").trim() || null,
+  });
+  if (error) redirect(`/customers?error=${encodeURIComponent(error.message)}`);
+  revalidateAll();
+  redirect("/customers?success=Customer added");
+}
+
+export async function updateCustomer(formData: FormData) {
+  await requireAdmin("/customers");
+  const supabase = createAdminClient();
+  const id = String(formData.get("id") ?? "");
+  const full_name = String(formData.get("full_name") ?? "").trim();
+  if (!id) redirect("/customers?error=Missing customer id");
+  if (!full_name) redirect("/customers?error=Full name is required");
+
+  const { error } = await supabase
+    .from("customers")
+    .update({
+      full_name,
+      email: String(formData.get("email") ?? "").trim() || null,
+      phone: String(formData.get("phone") ?? "").trim() || null,
+      address: String(formData.get("address") ?? "").trim() || null,
+    })
+    .eq("id", id);
+
+  if (error) redirect(`/customers?error=${encodeURIComponent(error.message)}`);
+  revalidateAll();
+  redirect("/customers?success=Customer updated");
+}
+
+export async function deleteCustomer(formData: FormData) {
+  await requireAdmin("/customers");
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("customers")
+    .delete()
+    .eq("id", String(formData.get("id")));
+  if (error) redirect(`/customers?error=${encodeURIComponent(error.message)}`);
+  revalidateAll();
+  redirect("/customers?success=Customer removed");
 }
 
 /** Receive stock: creates a product batch plus a matching stock-in transaction. */
@@ -342,10 +465,27 @@ export async function generatePurchaseOrders() {
 
 export async function updateOrderStatus(formData: FormData) {
   const supabase = createAdminClient();
+  const id = String(formData.get("id"));
+  const status = String(formData.get("status"));
+
+  if (status === "approved") {
+    const result = await convertPurchaseOrderToSalesInvoice(supabase, id);
+    if (!result.ok) {
+      redirect(`/orders?error=${encodeURIComponent(result.error)}`);
+    }
+    revalidateAll();
+    const message = result.alreadyExists
+      ? `Receipt ${result.receiptNumber} issued (Invoice ${result.invoiceNumber})`
+      : `Invoice ${result.invoiceNumber} converted to Receipt ${result.receiptNumber}`;
+    redirect(
+      `/receipt/${result.saleId}?success=${encodeURIComponent(message)}`
+    );
+  }
+
   const { error } = await supabase
     .from("purchase_orders")
-    .update({ status: String(formData.get("status")) })
-    .eq("id", String(formData.get("id")));
+    .update({ status })
+    .eq("id", id);
   if (error) redirect(`/orders?error=${encodeURIComponent(error.message)}`);
   revalidateAll();
   redirect("/orders?success=Order status updated");

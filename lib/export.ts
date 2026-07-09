@@ -39,3 +39,12 @@ export function jsonDownloadResponse(
     },
   });
 }
+
+/** CSV tuned for Excel (UTF-8 BOM + .csv filename). */
+export function excelCsvDownloadResponse(
+  filename: string,
+  csv: string
+): Response {
+  const excelName = filename.endsWith(".csv") ? filename : `${filename}.csv`;
+  return csvDownloadResponse(excelName, csv);
+}

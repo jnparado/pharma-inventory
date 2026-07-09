@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ProductWithStock } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
@@ -22,7 +23,9 @@ export function PosTerminal({ products }: { products: ProductWithStock[] }) {
   const [amountPaid, setAmountPaid] = useState("");
   const [loading, setLoading] = useState(false);
   const [receipt, setReceipt] = useState<{
+    saleId: string;
     invoice: string;
+    receiptNo: string;
     total: number;
     change: number;
   } | null>(null);
@@ -120,7 +123,9 @@ export function PosTerminal({ products }: { products: ProductWithStock[] }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setReceipt({
+        saleId: data.sale_id,
         invoice: data.invoice_number,
+        receiptNo: data.receipt_number,
         total: data.total,
         change: data.change,
       });
@@ -257,11 +262,18 @@ export function PosTerminal({ products }: { products: ProductWithStock[] }) {
             {receipt && (
               <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm">
                 <Badge tone="success">Sale complete</Badge>
-                <p className="mt-2 font-medium">{receipt.invoice}</p>
+                <p className="mt-2 font-medium">Receipt: {receipt.receiptNo}</p>
+                <p className="text-xs text-slate-500">Invoice: {receipt.invoice}</p>
                 <p>Total: {formatCurrency(receipt.total)}</p>
                 {receipt.change > 0 && (
                   <p>Change: {formatCurrency(receipt.change)}</p>
                 )}
+                <Link
+                  href={`/receipt/${receipt.saleId}`}
+                  className="mt-2 inline-block text-sm font-medium text-teal-700 hover:underline"
+                >
+                  View & print receipt →
+                </Link>
               </div>
             )}
 

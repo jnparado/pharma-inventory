@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { setActiveUserFromForm } from "@/app/actions/user";
-import { Badge, Card, PageHeader, SetupNotice } from "@/components/ui";
+import { Badge, Card, PageHeader, SetupNotice, buttonClass } from "@/components/ui";
 import { isAiConfigured } from "@/lib/env";
 import { getUsers, isSupabaseConfigured } from "@/lib/data";
+import { isAdmin } from "@/lib/permissions";
 import { getActiveUser } from "@/lib/user-session";
 import { getInitials } from "@/lib/utils";
 
@@ -20,6 +22,7 @@ export default async function SettingsPage() {
 
   const [users, activeUser] = await Promise.all([getUsers(), getActiveUser()]);
   const aiReady = isAiConfigured();
+  const userIsAdmin = isAdmin(activeUser);
 
   return (
     <>
@@ -78,6 +81,18 @@ export default async function SettingsPage() {
             </ul>
           )}
         </Card>
+
+        {userIsAdmin && (
+          <Card title="Administration">
+            <p className="text-sm text-slate-600">
+              Manage staff accounts, assign roles, and control who can edit
+              products, customers, and suppliers.
+            </p>
+            <Link href="/users" className={`${buttonClass} mt-4 inline-block`}>
+              Manage user accounts
+            </Link>
+          </Card>
+        )}
 
         <Card title="System status">
           <dl className="space-y-4 text-sm">

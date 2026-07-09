@@ -1,16 +1,17 @@
 import Link from "next/link";
 import {
-  createSupplier,
-  deleteSupplier,
-  updateSupplier,
+  createCustomer,
+  deleteCustomer,
+  updateCustomer,
 } from "@/app/actions";
 import {
-  getSupplierById,
-  getSuppliers,
+  getCustomerById,
+  getCustomers,
   isSupabaseConfigured,
 } from "@/lib/data";
 import { canManageRecords } from "@/lib/permissions";
 import { getActiveUser } from "@/lib/user-session";
+import { formatDateTime } from "@/lib/utils";
 import {
   Card,
   EmptyState,
@@ -22,7 +23,7 @@ import {
   labelClass,
 } from "@/components/ui";
 
-export default async function SuppliersPage({
+export default async function CustomersPage({
   searchParams,
 }: {
   searchParams: Promise<{ success?: string; error?: string; edit?: string }>;
@@ -32,16 +33,16 @@ export default async function SuppliersPage({
   if (!isSupabaseConfigured()) {
     return (
       <>
-        <PageHeader title="Suppliers" />
+        <PageHeader title="Customers" />
         <SetupNotice />
       </>
     );
   }
 
-  const [suppliers, activeUser, editing] = await Promise.all([
-    getSuppliers(),
+  const [customers, activeUser, editing] = await Promise.all([
+    getCustomers(),
     getActiveUser(),
-    edit ? getSupplierById(edit) : Promise.resolve(null),
+    edit ? getCustomerById(edit) : Promise.resolve(null),
   ]);
 
   const isAdmin = canManageRecords(activeUser);
@@ -49,55 +50,33 @@ export default async function SuppliersPage({
   return (
     <>
       <PageHeader
-        title="Suppliers"
-        description="Distributors and wholesalers you receive stock from."
+        title="Customers"
+        description="Manage customer records for sales and follow-up."
       />
       <FlashMessage success={success} error={error} />
 
       {!isAdmin && (
         <p className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          View-only mode. Contact an admin to add or edit suppliers.
+          View-only mode. Contact an admin to add or edit customer records.
         </p>
       )}
 
       {isAdmin && editing && (
-        <Card title="Edit supplier" className="mb-6">
+        <Card title="Edit customer" className="mb-6">
           <form
-            action={updateSupplier}
+            action={updateCustomer}
             className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
           >
             <input type="hidden" name="id" value={editing.id} />
             <div>
-              <label className={labelClass} htmlFor="edit_company_name">
-                Company name <span className="text-red-500">*</span>
+              <label className={labelClass} htmlFor="edit_full_name">
+                Full name <span className="text-red-500">*</span>
               </label>
               <input
-                id="edit_company_name"
-                name="company_name"
+                id="edit_full_name"
+                name="full_name"
                 required
-                defaultValue={editing.company_name}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="edit_contact_person">
-                Contact person
-              </label>
-              <input
-                id="edit_contact_person"
-                name="contact_person"
-                defaultValue={editing.contact_person ?? ""}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="edit_phone">
-                Phone
-              </label>
-              <input
-                id="edit_phone"
-                name="phone"
-                defaultValue={editing.phone ?? ""}
+                defaultValue={editing.full_name ?? ""}
                 className={inputClass}
               />
             </div>
@@ -114,6 +93,17 @@ export default async function SuppliersPage({
               />
             </div>
             <div>
+              <label className={labelClass} htmlFor="edit_phone">
+                Phone
+              </label>
+              <input
+                id="edit_phone"
+                name="phone"
+                defaultValue={editing.phone ?? ""}
+                className={inputClass}
+              />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3">
               <label className={labelClass} htmlFor="edit_address">
                 Address
               </label>
@@ -129,7 +119,7 @@ export default async function SuppliersPage({
                 Save changes
               </button>
               <Link
-                href="/suppliers"
+                href="/customers"
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Cancel
@@ -140,42 +130,20 @@ export default async function SuppliersPage({
       )}
 
       {isAdmin && !editing && (
-        <Card title="Add supplier" className="mb-6">
+        <Card title="Add customer" className="mb-6">
           <form
-            action={createSupplier}
+            action={createCustomer}
             className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
           >
             <div>
-              <label className={labelClass} htmlFor="company_name">
-                Company name
+              <label className={labelClass} htmlFor="full_name">
+                Full name <span className="text-red-500">*</span>
               </label>
               <input
-                id="company_name"
-                name="company_name"
+                id="full_name"
+                name="full_name"
                 required
-                placeholder="MediSupply PH"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="contact_person">
-                Contact person
-              </label>
-              <input
-                id="contact_person"
-                name="contact_person"
-                placeholder="Ana Reyes"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="phone">
-                Phone
-              </label>
-              <input
-                id="phone"
-                name="phone"
-                placeholder="0917-555-1001"
+                placeholder="Maria Santos"
                 className={inputClass}
               />
             </div>
@@ -187,66 +155,79 @@ export default async function SuppliersPage({
                 id="email"
                 name="email"
                 type="email"
-                placeholder="orders@medisupply.ph"
+                placeholder="maria@email.com"
                 className={inputClass}
               />
             </div>
             <div>
+              <label className={labelClass} htmlFor="phone">
+                Phone
+              </label>
+              <input
+                id="phone"
+                name="phone"
+                placeholder="0917-555-0100"
+                className={inputClass}
+              />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3">
               <label className={labelClass} htmlFor="address">
                 Address
               </label>
               <input
                 id="address"
                 name="address"
-                placeholder="Quezon City"
+                placeholder="Manila"
                 className={inputClass}
               />
             </div>
-            <div className="flex items-end">
+            <div>
               <button type="submit" className={buttonClass}>
-                Add supplier
+                Add customer
               </button>
             </div>
           </form>
         </Card>
       )}
 
-      <Card title={`Suppliers (${suppliers.length})`}>
-        {suppliers.length === 0 ? (
-          <EmptyState message="No suppliers yet." />
+      <Card title={`Customers (${customers.length})`}>
+        {customers.length === 0 ? (
+          <EmptyState message="No customers yet." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
-                  <th className="pb-2 font-medium">Company</th>
-                  <th className="pb-2 font-medium">Contact</th>
+                  <th className="pb-2 font-medium">Name</th>
                   <th className="pb-2 font-medium">Phone</th>
                   <th className="pb-2 font-medium">Email</th>
                   <th className="pb-2 font-medium">Address</th>
+                  <th className="pb-2 font-medium">Registered</th>
                   {isAdmin && <th className="pb-2 font-medium" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {suppliers.map((s) => (
-                  <tr key={s.id}>
+                {customers.map((c) => (
+                  <tr key={c.id}>
                     <td className="py-3 font-medium text-slate-700">
-                      {s.company_name}
+                      {c.full_name ?? "—"}
                     </td>
-                    <td className="py-3">{s.contact_person ?? "—"}</td>
-                    <td className="py-3">{s.phone ?? "—"}</td>
-                    <td className="py-3">{s.email ?? "—"}</td>
-                    <td className="py-3 text-slate-500">{s.address ?? "—"}</td>
+                    <td className="py-3">{c.phone ?? "—"}</td>
+                    <td className="py-3">{c.email ?? "—"}</td>
+                    <td className="py-3 text-slate-500">{c.address ?? "—"}</td>
+                    <td className="py-3 text-slate-500">
+                      {c.created_at ? formatDateTime(c.created_at) : "—"}
+                    </td>
                     {isAdmin && (
                       <td className="py-3 text-right whitespace-nowrap">
                         <Link
-                          href={`/suppliers?edit=${s.id}`}
+                          href={`/customers?edit=${c.id}`}
                           className="mr-3 text-xs font-medium text-teal-600 hover:underline"
                         >
                           Edit
                         </Link>
-                        <form action={deleteSupplier} className="inline">
-                          <input type="hidden" name="id" value={s.id} />
+                        <form action={deleteCustomer} className="inline">
+                          <input type="hidden" name="id" value={c.id} />
                           <button
                             type="submit"
                             className="text-xs font-medium text-red-500 hover:underline"
