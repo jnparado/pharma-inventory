@@ -35,9 +35,24 @@ export default async function SettingsPage() {
         <Card title="Active profile">
           {users.length === 0 ? (
             <p className="text-sm text-slate-500">
-              No users found. Add a row to the{" "}
-              <code className="rounded bg-slate-100 px-1 text-xs">users</code>{" "}
-              table in Supabase.
+              No users found.{" "}
+              {userIsAdmin ? (
+                <>
+                  Go to{" "}
+                  <Link href="/users" className="font-medium text-teal-600 hover:underline">
+                    User Accounts
+                  </Link>{" "}
+                  to create staff accounts.
+                </>
+              ) : (
+                <>
+                  Ask an admin to add accounts in{" "}
+                  <Link href="/users" className="font-medium text-teal-600 hover:underline">
+                    User Accounts
+                  </Link>
+                  .
+                </>
+              )}
             </p>
           ) : (
             <ul className="space-y-2">

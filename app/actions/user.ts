@@ -94,12 +94,15 @@ export async function createUser(formData: FormData) {
     redirect("/users?error=Name and email are required");
   }
 
-  const { error } = await supabase.from("users").insert({
-    full_name,
-    email,
-    role,
+  const base = { full_name, email, role };
+  let { error } = await supabase.from("users").insert({
+    ...base,
     branch_id,
   });
+
+  if (error && branch_id && error.message.toLowerCase().includes("branch_id")) {
+    ({ error } = await supabase.from("users").insert(base));
+  }
 
   if (error) redirect(`/users?error=${encodeURIComponent(error.message)}`);
   revalidateUserPaths();
@@ -124,10 +127,15 @@ export async function updateUser(formData: FormData) {
     redirect("/users?error=You cannot remove your own admin role");
   }
 
-  const { error } = await supabase
+  const base = { full_name, email, role };
+  let { error } = await supabase
     .from("users")
-    .update({ full_name, email, role, branch_id })
+    .update({ ...base, branch_id })
     .eq("id", id);
+
+  if (error && error.message.toLowerCase().includes("branch_id")) {
+    ({ error } = await supabase.from("users").update(base).eq("id", id));
+  }
 
   if (error) redirect(`/users?error=${encodeURIComponent(error.message)}`);
   revalidateUserPaths();

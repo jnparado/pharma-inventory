@@ -217,6 +217,18 @@ export function TopBar({
                         </svg>
                         Edit Profile
                       </Link>
+                      {user.role?.toLowerCase() === "admin" && (
+                        <Link
+                          href="/users"
+                          onClick={() => setShowUserMenu(false)}
+                          className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                          <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                          </svg>
+                          Manage User Accounts
+                        </Link>
+                      )}
                     </div>
 
                     {users.length > 1 && (
