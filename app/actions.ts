@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-guard";
+import { insertCustomer, updateCustomerRow } from "@/lib/customers-db";
 import { convertPurchaseOrderToSalesInvoice } from "@/lib/purchase-order-invoice";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -190,13 +191,14 @@ export async function createCustomer(formData: FormData) {
   const full_name = String(formData.get("full_name") ?? "").trim();
   if (!full_name) redirect("/customers?error=Full name is required");
 
-  const { error } = await supabase.from("customers").insert({
+  const { error } = await insertCustomer(supabase, {
     full_name,
     email: String(formData.get("email") ?? "").trim() || null,
     phone: String(formData.get("phone") ?? "").trim() || null,
     address: String(formData.get("address") ?? "").trim() || null,
   });
-  if (error) redirect(`/customers?error=${encodeURIComponent(error.message)}`);
+
+  if (error) redirect(`/customers?error=${encodeURIComponent(error)}`);
   revalidateAll();
   redirect("/customers?success=Customer added");
 }
@@ -209,17 +211,14 @@ export async function updateCustomer(formData: FormData) {
   if (!id) redirect("/customers?error=Missing customer id");
   if (!full_name) redirect("/customers?error=Full name is required");
 
-  const { error } = await supabase
-    .from("customers")
-    .update({
-      full_name,
-      email: String(formData.get("email") ?? "").trim() || null,
-      phone: String(formData.get("phone") ?? "").trim() || null,
-      address: String(formData.get("address") ?? "").trim() || null,
-    })
-    .eq("id", id);
+  const { error } = await updateCustomerRow(supabase, id, {
+    full_name,
+    email: String(formData.get("email") ?? "").trim() || null,
+    phone: String(formData.get("phone") ?? "").trim() || null,
+    address: String(formData.get("address") ?? "").trim() || null,
+  });
 
-  if (error) redirect(`/customers?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/customers?error=${encodeURIComponent(error)}`);
   revalidateAll();
   redirect("/customers?success=Customer updated");
 }

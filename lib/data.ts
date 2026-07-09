@@ -1,3 +1,4 @@
+import { normalizeCustomer } from "@/lib/customers-db";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
@@ -97,12 +98,22 @@ export async function getSuppliers(): Promise<Supplier[]> {
 
 export async function getCustomers(): Promise<Customer[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("customers")
     .select("*")
     .order("full_name");
+
+  if (error && error.message.toLowerCase().includes("full_name")) {
+    ({ data, error } = await supabase
+      .from("customers")
+      .select("*")
+      .order("created_at", { ascending: false }));
+  }
+
   if (error) throw new Error(`Failed to load customers: ${error.message}`);
-  return data;
+  return (data ?? []).map((row) =>
+    normalizeCustomer(row as Record<string, unknown>)
+  );
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
@@ -135,7 +146,7 @@ export async function getCustomerById(id: string): Promise<Customer | null> {
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`Failed to load customer: ${error.message}`);
-  return data;
+  return data ? normalizeCustomer(data as Record<string, unknown>) : null;
 }
 
 export async function getUserById(id: string): Promise<User | null> {
