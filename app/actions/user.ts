@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { STATIC_AUTH_COOKIE } from "@/lib/static-auth";
 import { requireAdmin } from "@/lib/admin-guard";
 import { ensureUserProfileFromAuth } from "@/lib/auth-users";
 import { getUserByEmail, getUserById } from "@/lib/data";
@@ -18,6 +20,9 @@ function revalidateUserPaths() {
 }
 
 export async function signOut() {
+  const cookieStore = await cookies();
+  cookieStore.delete(STATIC_AUTH_COOKIE);
+
   const supabase = await createClient();
   await supabase.auth.signOut();
   revalidateUserPaths();

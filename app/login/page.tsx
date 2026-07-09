@@ -1,6 +1,5 @@
 import { LoginForm } from "@/components/login-form";
 import { FlashMessage, SetupNotice } from "@/components/ui";
-import { listAuthUsersForLogin } from "@/lib/auth-users";
 import { isSupabaseConfigured } from "@/lib/data";
 
 export default async function LoginPage({
@@ -20,15 +19,6 @@ export default async function LoginPage({
     );
   }
 
-  let authUsers: Awaited<ReturnType<typeof listAuthUsersForLogin>> = [];
-  let loadError: string | undefined;
-
-  try {
-    authUsers = await listAuthUsersForLogin();
-  } catch (e) {
-    loadError = (e as Error).message;
-  }
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#10172A] p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
@@ -42,16 +32,12 @@ export default async function LoginPage({
           </p>
         </div>
 
-        {loadError && <FlashMessage error={loadError} />}
+        <FlashMessage error={error} />
 
-        <LoginForm
-          authUsers={authUsers}
-          next={next ?? "/"}
-          initialError={error}
-        />
+        <LoginForm next={next ?? "/"} initialError={error} />
 
         <p className="mt-6 text-center text-xs text-slate-400">
-          Admins can add login accounts in User Accounts.
+          Demo login is pre-filled. Change credentials in production.
         </p>
       </div>
     </div>

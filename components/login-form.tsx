@@ -1,22 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import type { AuthLoginOption } from "@/lib/auth-users";
-import { createClient } from "@/lib/supabase/client";
+import {
+  getStaticLoginEmail,
+  getStaticLoginPassword,
+} from "@/lib/static-auth";
 import { buttonClass, inputClass, labelClass } from "@/components/ui";
 
 export function LoginForm({
-  authUsers,
   next = "/",
   initialError,
 }: {
-  authUsers: AuthLoginOption[];
   next?: string;
   initialError?: string;
 }) {
   const [error, setError] = useState(initialError ?? "");
   const [loading, setLoading] = useState(false);
-  const usePicker = authUsers.length > 0;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -30,27 +29,27 @@ export function LoginForm({
     const destination = String(formData.get("next") ?? "/").trim() || "/";
 
     if (!email || !password) {
-      setError("Select an account and enter your password.");
+      setError("Enter email and password.");
       setLoading(false);
       return;
     }
 
     try {
-      const supabase = createClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, next: destination }),
       });
 
-      if (signInError) {
-        setError(signInError.message);
+      const data = (await res.json()) as { error?: string; next?: string };
+
+      if (!res.ok) {
+        setError(data.error ?? "Sign in failed");
         setLoading(false);
         return;
       }
 
-      await fetch("/api/auth/sync", { method: "POST" });
-
-      window.location.href = destination.startsWith("/") ? destination : "/";
+      window.location.href = data.next ?? destination;
     } catch (err) {
       setError((err as Error).message || "Sign in failed");
       setLoading(false);
@@ -69,43 +68,18 @@ export function LoginForm({
         <input type="hidden" name="next" value={next} />
         <div>
           <label className={labelClass} htmlFor="email">
-            {usePicker ? "Account" : "Email"}
+            Email
           </label>
-          {usePicker ? (
-            <>
-              <select
-                id="email"
-                name="email"
-                required
-                defaultValue=""
-                className={inputClass}
-                disabled={loading}
-              >
-                <option value="" disabled>
-                  Select your account…
-                </option>
-                {authUsers.map((u) => (
-                  <option key={u.id} value={u.email}>
-                    {u.full_name} ({u.email}) — {u.role}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-slate-400">
-                Loaded from Supabase Authentication
-              </p>
-            </>
-          ) : (
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              placeholder="you@pharmacy.ph"
-              className={inputClass}
-              disabled={loading}
-            />
-          )}
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            defaultValue={getStaticLoginEmail()}
+            className={inputClass}
+            disabled={loading}
+          />
         </div>
         <div>
           <label className={labelClass} htmlFor="password">
@@ -117,7 +91,7 @@ export function LoginForm({
             type="password"
             required
             autoComplete="current-password"
-            placeholder="••••••••"
+            defaultValue={getStaticLoginPassword()}
             className={inputClass}
             disabled={loading}
           />
