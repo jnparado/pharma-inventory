@@ -1,50 +1,26 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-guard";
-import { getUserById } from "@/lib/data";
+import { getUserByEmail, getUserById } from "@/lib/data";
 import { isAdmin } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { getActiveUser } from "@/lib/user-session";
 
 function revalidateUserPaths() {
   revalidatePath("/", "layout");
-  for (const path of ["/profile", "/settings", "/users"]) {
+  for (const path of ["/profile", "/settings", "/users", "/login"]) {
     revalidatePath(path);
   }
 }
 
-export async function setActiveUser(userId: string) {
-  const cookieStore = await cookies();
-  cookieStore.delete("signed_out");
-  cookieStore.set("active_user_id", userId, {
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-    sameSite: "lax",
-  });
-  revalidatePath("/", "layout");
-}
-
-export async function setActiveUserFromForm(formData: FormData) {
-  const userId = String(formData.get("user_id") ?? "");
-  if (!userId) return;
-  await setActiveUser(userId);
-  revalidatePath("/settings");
-  revalidatePath("/profile");
-}
-
 export async function signOut() {
-  const cookieStore = await cookies();
-  cookieStore.delete("active_user_id");
-  cookieStore.set("signed_out", "1", {
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-    sameSite: "lax",
-  });
-  revalidatePath("/", "layout");
-  redirect("/");
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  revalidateUserPaths();
+  redirect("/login");
 }
 
 export async function updateUserProfile(formData: FormData) {
@@ -87,14 +63,37 @@ export async function createUser(formData: FormData) {
 
   const full_name = String(formData.get("full_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
   const role = String(formData.get("role") ?? "cashier").trim();
   const branch_id = String(formData.get("branch_id") ?? "").trim() || null;
 
-  if (!full_name || !email) {
-    redirect("/users?error=Name and email are required");
+  if (!full_name || !email || !password) {
+    redirect("/users?error=Name%2C%20email%2C%20and%20password%20are%20required");
   }
 
-  const base = { full_name, email, role };
+  if (password.length < 6) {
+    redirect("/users?error=Password%20must%20be%20at%20least%206%20characters");
+  }
+
+  const existingProfile = await getUserByEmail(email);
+  if (existingProfile) {
+    redirect("/users?error=Email%20already%20registered");
+  }
+
+  const { data: authData, error: authError } =
+    await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name, role },
+    });
+
+  if (authError) {
+    redirect(`/users?error=${encodeURIComponent(authError.message)}`);
+  }
+
+  const authId = authData.user.id;
+  const base = { id: authId, full_name, email, role };
   let { error } = await supabase.from("users").insert({
     ...base,
     branch_id,
@@ -104,7 +103,11 @@ export async function createUser(formData: FormData) {
     ({ error } = await supabase.from("users").insert(base));
   }
 
-  if (error) redirect(`/users?error=${encodeURIComponent(error.message)}`);
+  if (error) {
+    await supabase.auth.admin.deleteUser(authId);
+    redirect(`/users?error=${encodeURIComponent(error.message)}`);
+  }
+
   revalidateUserPaths();
   redirect("/users?success=User account created");
 }
@@ -116,6 +119,7 @@ export async function updateUser(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const full_name = String(formData.get("full_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
   const role = String(formData.get("role") ?? "").trim();
   const branch_id = String(formData.get("branch_id") ?? "").trim() || null;
 
@@ -125,6 +129,10 @@ export async function updateUser(formData: FormData) {
 
   if (id === admin.id && role !== "admin") {
     redirect("/users?error=You cannot remove your own admin role");
+  }
+
+  if (password && password.length < 6) {
+    redirect("/users?error=Password%20must%20be%20at%20least%206%20characters");
   }
 
   const base = { full_name, email, role };
@@ -138,6 +146,38 @@ export async function updateUser(formData: FormData) {
   }
 
   if (error) redirect(`/users?error=${encodeURIComponent(error.message)}`);
+
+  const authUpdates: { email?: string; password?: string } = {};
+  if (email) authUpdates.email = email;
+  if (password) authUpdates.password = password;
+
+  if (Object.keys(authUpdates).length > 0) {
+    let { error: authError } = await supabase.auth.admin.updateUserById(
+      id,
+      authUpdates
+    );
+
+    if (authError) {
+      const { data: authList } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000,
+      });
+      const authUser = authList?.users.find(
+        (u) => u.email?.toLowerCase() === email.toLowerCase()
+      );
+      if (authUser) {
+        ({ error: authError } = await supabase.auth.admin.updateUserById(
+          authUser.id,
+          authUpdates
+        ));
+      }
+    }
+
+    if (authError) {
+      redirect(`/users?error=${encodeURIComponent(authError.message)}`);
+    }
+  }
+
   revalidateUserPaths();
   redirect("/users?success=User account updated");
 }
@@ -160,12 +200,26 @@ export async function deleteUser(formData: FormData) {
     redirect("/users?error=Cannot delete the only admin account");
   }
 
+  const profile = await getUserById(id);
+
   const { error } = await supabase.from("users").delete().eq("id", id);
   if (error) redirect(`/users?error=${encodeURIComponent(error.message)}`);
 
-  const cookieStore = await cookies();
-  if (cookieStore.get("active_user_id")?.value === id) {
-    cookieStore.delete("active_user_id");
+  try {
+    await supabase.auth.admin.deleteUser(id);
+  } catch {
+    if (profile?.email) {
+      const { data: authList } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000,
+      });
+      const authUser = authList?.users.find(
+        (u) => u.email?.toLowerCase() === profile.email.toLowerCase()
+      );
+      if (authUser) {
+        await supabase.auth.admin.deleteUser(authUser.id);
+      }
+    }
   }
 
   revalidateUserPaths();

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui";
 import { isSupabaseConfigured } from "@/lib/data";
 import { isAdmin } from "@/lib/permissions";
-import { getActiveUser } from "@/lib/user-session";
+import { getActiveUser, getAuthEmail } from "@/lib/user-session";
 import { formatDateTime, getInitials } from "@/lib/utils";
 
 export default async function ProfilePage({
@@ -32,10 +32,13 @@ export default async function ProfilePage({
     );
   }
 
-  const user = await getActiveUser();
+  const [user, authEmail] = await Promise.all([
+    getActiveUser(),
+    getAuthEmail(),
+  ]);
   const userIsAdmin = isAdmin(user);
 
-  if (!user) {
+  if (!authEmail) {
     return (
       <>
         <PageHeader
@@ -44,10 +47,27 @@ export default async function ProfilePage({
         />
         <Card>
           <p className="text-sm text-slate-600">
-            You are signed out. Use the profile menu in the top bar to select a
-            user, or go to{" "}
-            <Link href="/settings" className="font-medium text-teal-600 hover:underline">
-              Settings
+            You are not signed in.{" "}
+            <Link href="/login" className="font-medium text-teal-600 hover:underline">
+              Go to login
+            </Link>
+            .
+          </p>
+        </Card>
+      </>
+    );
+  }
+
+  if (!user) {
+    return (
+      <>
+        <PageHeader title="My Profile" />
+        <Card>
+          <p className="text-sm text-slate-600">
+            Signed in as <strong>{authEmail}</strong>, but no staff profile is
+            linked to this email. Ask an admin to create your account in{" "}
+            <Link href="/users" className="font-medium text-teal-600 hover:underline">
+              User Accounts
             </Link>
             .
           </p>

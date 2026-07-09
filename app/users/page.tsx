@@ -107,6 +107,20 @@ export default async function UsersPage({
               />
             </div>
             <div>
+              <label className={labelClass} htmlFor="edit_password">
+                New password
+              </label>
+              <input
+                id="edit_password"
+                name="password"
+                type="password"
+                minLength={6}
+                autoComplete="new-password"
+                placeholder="Leave blank to keep current"
+                className={inputClass}
+              />
+            </div>
+            <div>
               <label className={labelClass} htmlFor="edit_role">
                 Role <span className="text-red-500">*</span>
               </label>
@@ -173,6 +187,21 @@ export default async function UsersPage({
                 type="email"
                 required
                 placeholder="juan@pharmacy.ph"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="password">
+                Password <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                minLength={6}
+                autoComplete="new-password"
+                placeholder="Min. 6 characters"
                 className={inputClass}
               />
             </div>

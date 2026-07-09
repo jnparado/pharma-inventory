@@ -149,6 +149,17 @@ export async function getUserById(id: string): Promise<User | null> {
   return data;
 }
 
+export async function getUserByEmail(email: string): Promise<User | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .ilike("email", email.trim())
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load user: ${error.message}`);
+  return data;
+}
+
 export async function getBatches(): Promise<BatchWithProduct[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase

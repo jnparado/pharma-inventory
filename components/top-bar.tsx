@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   markAllNotificationsRead,
   markNotificationRead,
-  setActiveUser,
   signOut,
 } from "@/app/actions/user";
 import { useMobileNav } from "@/components/app-shell";
@@ -14,12 +13,10 @@ import { formatDateTime, formatDisplayName, getInitials } from "@/lib/utils";
 
 export function TopBar({
   user,
-  users = [],
   notifications = [],
   unreadCount = 0,
 }: {
   user: User | null;
-  users?: User[];
   notifications?: Notification[];
   unreadCount?: number;
 }) {
@@ -46,11 +43,6 @@ export function TopBar({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  async function switchUser(userId: string) {
-    await setActiveUser(userId);
-    setShowUserMenu(false);
-  }
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-700/60 bg-[#151f33]">
@@ -231,34 +223,6 @@ export function TopBar({
                       )}
                     </div>
 
-                    {users.length > 1 && (
-                      <div className="border-t border-slate-100 py-1">
-                        <p className="px-4 py-2 text-xs font-medium uppercase text-slate-400">
-                          Switch user
-                        </p>
-                        {users
-                          .filter((u) => u.id !== user.id)
-                          .map((u) => (
-                            <button
-                              key={u.id}
-                              type="button"
-                              onClick={() => switchUser(u.id)}
-                              className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-                            >
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-600">
-                                {getInitials(u.full_name)}
-                              </span>
-                              <span className="min-w-0">
-                                <span className="block truncate font-medium">{u.full_name}</span>
-                                <span className="block truncate text-xs capitalize text-slate-400">
-                                  {u.role}
-                                </span>
-                              </span>
-                            </button>
-                          ))}
-                      </div>
-                    )}
-
                     <div className="border-t border-slate-100 py-1">
                       <form action={signOut}>
                         <button
@@ -274,32 +238,16 @@ export function TopBar({
                     </div>
                   </>
                 ) : (
-                  <div className="py-1">
-                    <p className="px-4 py-2 text-xs font-medium uppercase text-slate-400">
-                      Sign in
+                  <div className="py-2">
+                    <p className="px-4 py-2 text-sm text-slate-500">
+                      Profile not linked. Contact an admin.
                     </p>
-                    {users.length === 0 ? (
-                      <p className="px-4 py-3 text-sm text-slate-500">No users available</p>
-                    ) : (
-                      users.map((u) => (
-                        <button
-                          key={u.id}
-                          type="button"
-                          onClick={() => switchUser(u.id)}
-                          className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-                        >
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-100 text-xs font-semibold text-teal-700">
-                            {getInitials(u.full_name)}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block truncate font-medium">{u.full_name}</span>
-                            <span className="block truncate text-xs capitalize text-slate-400">
-                              {u.role}
-                            </span>
-                          </span>
-                        </button>
-                      ))
-                    )}
+                    <Link
+                      href="/login"
+                      className="block px-4 py-2 text-sm font-medium text-teal-600 hover:bg-slate-50"
+                    >
+                      Sign in again
+                    </Link>
                   </div>
                 )}
               </div>

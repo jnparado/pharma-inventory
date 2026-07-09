@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { setActiveUserFromForm } from "@/app/actions/user";
+import { signOut } from "@/app/actions/user";
 import { Badge, Card, PageHeader, SetupNotice, buttonClass } from "@/components/ui";
 import { isAiConfigured } from "@/lib/env";
-import { getUsers, isSupabaseConfigured } from "@/lib/data";
+import { isSupabaseConfigured } from "@/lib/data";
 import { isAdmin } from "@/lib/permissions";
-import { getActiveUser } from "@/lib/user-session";
+import { getActiveUser, getAuthEmail } from "@/lib/user-session";
 import { getInitials } from "@/lib/utils";
 
 export default async function SettingsPage() {
@@ -20,7 +20,10 @@ export default async function SettingsPage() {
     );
   }
 
-  const [users, activeUser] = await Promise.all([getUsers(), getActiveUser()]);
+  const [activeUser, authEmail] = await Promise.all([
+    getActiveUser(),
+    getAuthEmail(),
+  ]);
   const aiReady = isAiConfigured();
   const userIsAdmin = isAdmin(activeUser);
 
@@ -32,76 +35,53 @@ export default async function SettingsPage() {
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Active profile">
-          {users.length === 0 ? (
-            <p className="text-sm text-slate-500">
-              No users found.{" "}
-              {userIsAdmin ? (
-                <>
-                  Go to{" "}
-                  <Link href="/users" className="font-medium text-teal-600 hover:underline">
-                    User Accounts
-                  </Link>{" "}
-                  to create staff accounts.
-                </>
-              ) : (
-                <>
-                  Ask an admin to add accounts in{" "}
-                  <Link href="/users" className="font-medium text-teal-600 hover:underline">
-                    User Accounts
-                  </Link>
-                  .
-                </>
-              )}
-            </p>
+        <Card title="Signed in">
+          {activeUser ? (
+            <div className="flex items-center gap-4">
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-100 text-sm font-semibold text-teal-700">
+                {getInitials(activeUser.full_name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold text-slate-800">
+                  {activeUser.full_name}
+                </p>
+                <p className="truncate text-sm text-slate-500">
+                  {authEmail ?? activeUser.email}
+                </p>
+                <Badge tone="success">
+                  <span className="capitalize">{activeUser.role}</span>
+                </Badge>
+              </div>
+            </div>
           ) : (
-            <ul className="space-y-2">
-              {users.map((u) => {
-                const isActive = activeUser?.id === u.id;
-                return (
-                  <li key={u.id}>
-                    <form action={setActiveUserFromForm}>
-                      <input type="hidden" name="user_id" value={u.id} />
-                      <button
-                        type="submit"
-                        className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
-                          isActive
-                            ? "border-indigo-200 bg-indigo-50"
-                            : "border-slate-100 hover:border-slate-200 hover:bg-slate-50"
-                        }`}
-                      >
-                        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-100 text-sm font-semibold text-teal-700">
-                          {getInitials(u.full_name)}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium text-slate-800">
-                            {u.full_name}
-                          </span>
-                          <span className="block truncate text-xs text-slate-500">
-                            {u.email}
-                          </span>
-                        </span>
-                        <span className="shrink-0">
-                          {isActive ? (
-                            <Badge tone="success">Active</Badge>
-                          ) : (
-                            <span className="text-xs text-slate-400">Switch</span>
-                          )}
-                        </span>
-                      </button>
-                    </form>
-                  </li>
-                );
-              })}
-            </ul>
+            <p className="text-sm text-slate-600">
+              Signed in as <strong>{authEmail}</strong>, but no staff profile
+              matches this email. Ask an admin to create your account in{" "}
+              <Link href="/users" className="text-teal-600 hover:underline">
+                User Accounts
+              </Link>
+              .
+            </p>
           )}
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link href="/profile" className={buttonClass}>
+              My profile
+            </Link>
+            <form action={signOut}>
+              <button
+                type="submit"
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
         </Card>
 
         {userIsAdmin && (
           <Card title="Administration">
             <p className="text-sm text-slate-600">
-              Manage staff accounts, assign roles, and control who can edit
-              products, customers, and suppliers.
+              Manage staff accounts, assign roles, and set login passwords.
             </p>
             <Link href="/users" className={`${buttonClass} mt-4 inline-block`}>
               Manage user accounts
@@ -115,6 +95,12 @@ export default async function SettingsPage() {
               <dt className="text-slate-600">Database (Supabase)</dt>
               <dd>
                 <Badge tone="success">Connected</Badge>
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-slate-600">Authentication</dt>
+              <dd>
+                <Badge tone="success">Email login</Badge>
               </dd>
             </div>
             <div className="flex items-center justify-between gap-4">

@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { AppShell } from "@/components/app-shell";
+import { ShellGate } from "@/components/shell-gate";
 import { TopBarWrapper } from "@/components/top-bar-wrapper";
 import "./globals.css";
 
@@ -36,10 +36,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full overflow-x-hidden bg-[#f4f7fe] font-sans text-slate-900">
-        <AppShell>
-          <TopBarWrapper />
-          <main className="min-w-0 flex-1 p-4 sm:p-6 md:p-8">{children}</main>
-        </AppShell>
+        <ShellGate topBar={<TopBarWrapper />}>{children}</ShellGate>
       </body>
     </html>
   );

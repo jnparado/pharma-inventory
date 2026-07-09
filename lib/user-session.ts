@@ -1,18 +1,23 @@
-import { cookies } from "next/headers";
-import { getUsers } from "@/lib/data";
+import { getUserByEmail } from "@/lib/data";
 import type { User } from "@/lib/types";
+import { createClient } from "@/lib/supabase/server";
 
+/** Current staff profile linked to the Supabase Auth session (matched by email). */
 export async function getActiveUser(): Promise<User | null> {
-  const cookieStore = await cookies();
-  if (cookieStore.get("signed_out")?.value === "1") return null;
+  const supabase = await createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
 
-  const users = await getUsers();
-  if (users.length === 0) return null;
+  if (!authUser?.email) return null;
 
-  const activeId = cookieStore.get("active_user_id")?.value;
-  const match = users.find((u) => u.id === activeId);
-  if (match) return match;
+  return getUserByEmail(authUser.email);
+}
 
-  const admin = users.find((u) => u.role?.toLowerCase() === "admin");
-  return admin ?? users[0];
+export async function getAuthEmail(): Promise<string | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user?.email ?? null;
 }
