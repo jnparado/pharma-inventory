@@ -35,10 +35,23 @@ export default async function OrdersPage({
 
   const orders = (await getPurchaseOrders()) as PurchaseOrder[];
   const supabase = createAdminClient();
-  const invoiceMap = await getSalesInvoicesForPurchaseOrders(
-    supabase,
-    orders.map((po) => po.po_number)
-  );
+  let invoiceMap = new Map<
+    string,
+    {
+      invoice_number: string;
+      receipt_number: string | null;
+      total_amount: number;
+      sale_id: string;
+    }
+  >();
+  try {
+    invoiceMap = await getSalesInvoicesForPurchaseOrders(
+      supabase,
+      orders.map((po) => po.po_number)
+    );
+  } catch {
+    invoiceMap = new Map();
+  }
 
   return (
     <>

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { deductStockFefo, getAvailableStock } from "@/lib/pos";
-import { issueReceiptForSale } from "@/lib/receipt";
+import { issueReceiptForSale, loadSalesByInvoiceNumbers } from "@/lib/receipt";
 
 export function salesInvoiceNumberForPo(poNumber: string): string {
   return `SI-${poNumber}`;
@@ -94,7 +94,12 @@ export async function convertPurchaseOrderToSalesInvoice(
       .update({ status: "approved" })
       .eq("id", purchaseOrderId);
 
-    const receipt = await issueReceiptForSale(supabase, existing.id);
+    let receipt;
+    try {
+      receipt = await issueReceiptForSale(supabase, existing.id);
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
 
     return {
       ok: true,
@@ -180,7 +185,12 @@ export async function convertPurchaseOrderToSalesInvoice(
     return { ok: false, error: statusError.message };
   }
 
-  const receipt = await issueReceiptForSale(supabase, sale.id);
+  let receipt;
+  try {
+    receipt = await issueReceiptForSale(supabase, sale.id);
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 
   return {
     ok: true,
@@ -203,16 +213,13 @@ export async function getSalesInvoicesForPurchaseOrders(
   }
 
   const invoiceNumbers = poNumbers.map(salesInvoiceNumberForPo);
-  const { data } = await supabase
-    .from("sales")
-    .select("id, invoice_number, receipt_number, total_amount")
-    .in("invoice_number", invoiceNumbers);
+  const rows = await loadSalesByInvoiceNumbers(supabase, invoiceNumbers);
 
   const map = new Map<
     string,
     { invoice_number: string; receipt_number: string | null; total_amount: number; sale_id: string }
   >();
-  for (const row of data ?? []) {
+  for (const row of rows) {
     const poNumber = row.invoice_number.replace(/^SI-/, "");
     map.set(poNumber, {
       invoice_number: row.invoice_number,

@@ -468,8 +468,20 @@ export async function updateOrderStatus(formData: FormData) {
   const id = String(formData.get("id"));
   const status = String(formData.get("status"));
 
+  if (!id) {
+    redirect("/orders?error=Missing%20order%20id");
+  }
+
   if (status === "approved") {
-    const result = await convertPurchaseOrderToSalesInvoice(supabase, id);
+    let result;
+    try {
+      result = await convertPurchaseOrderToSalesInvoice(supabase, id);
+    } catch (e) {
+      redirect(
+        `/orders?error=${encodeURIComponent((e as Error).message ?? "Approval failed")}`
+      );
+    }
+
     if (!result.ok) {
       redirect(`/orders?error=${encodeURIComponent(result.error)}`);
     }
