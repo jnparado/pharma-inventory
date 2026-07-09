@@ -11,8 +11,16 @@ export function PageHeader({
 }) {
   return (
     <div className="mb-6">
-      <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
+      <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">{title}</h1>
       {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+    </div>
+  );
+}
+
+export function TableScroll({ children }: { children: ReactNode }) {
+  return (
+    <div className="-mx-4 overflow-x-auto px-4 sm:-mx-5 sm:px-5">
+      {children}
     </div>
   );
 }
@@ -30,15 +38,15 @@ export function Card({
 }) {
   return (
     <section
-      className={`rounded-2xl border border-slate-100 bg-white shadow-sm ${className}`}
+      className={`min-w-0 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm ${className}`}
     >
       {title && (
-        <div className="flex items-center justify-between border-b border-slate-50 px-5 py-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-50 px-4 py-3 sm:px-5 sm:py-3.5">
           <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
           {action}
         </div>
       )}
-      <div className="p-5">{children}</div>
+      <div className="p-4 sm:p-5">{children}</div>
     </section>
   );
 }

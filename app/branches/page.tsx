@@ -16,6 +16,7 @@ import {
   FlashMessage,
   PageHeader,
   SetupNotice,
+  TableScroll,
   buttonClass,
   inputClass,
   labelClass,
@@ -154,7 +155,8 @@ export default async function BranchesPage({
         {(transfers ?? []).length === 0 ? (
           <EmptyState message="No transfer requests yet." />
         ) : (
-          <table className="w-full text-sm">
+          <TableScroll>
+          <table className="w-full min-w-[520px] text-sm">
             <thead>
               <tr className="text-left text-xs uppercase text-slate-400">
                 <th className="pb-2">From</th>
@@ -203,6 +205,7 @@ export default async function BranchesPage({
               ))}
             </tbody>
           </table>
+          </TableScroll>
         )}
       </Card>
     </>

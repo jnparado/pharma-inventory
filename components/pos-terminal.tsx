@@ -135,8 +135,8 @@ export function PosTerminal({ products }: { products: ProductWithStock[] }) {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-5">
-      <div className="lg:col-span-3 space-y-4">
+    <div className="grid min-w-0 gap-6 lg:grid-cols-5">
+      <div className="order-2 space-y-4 lg:order-1 lg:col-span-3">
         <Card title="Find product">
           <input
             value={search}
@@ -171,7 +171,7 @@ export function PosTerminal({ products }: { products: ProductWithStock[] }) {
         </Card>
       </div>
 
-      <div className="lg:col-span-2">
+      <div className="order-1 lg:order-2 lg:col-span-2">
         <Card title={`Cart (${cart.length})`}>
           {cart.length === 0 ? (
             <p className="py-6 text-center text-sm text-slate-400">

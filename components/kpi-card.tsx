@@ -39,14 +39,16 @@ export function KpiCard({
 }) {
   const t = tones[tone];
   return (
-    <div className={`rounded-2xl p-5 ${t.bg}`}>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-slate-600">{label}</p>
-          <p className={`mt-2 text-3xl font-bold ${t.value}`}>{value}</p>
+    <div className={`rounded-2xl p-4 sm:p-5 ${t.bg}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-slate-600 sm:text-sm">{label}</p>
+          <p className={`mt-1 truncate text-2xl font-bold sm:mt-2 sm:text-3xl ${t.value}`}>
+            {value}
+          </p>
         </div>
         <div
-          className={`flex h-11 w-11 items-center justify-center rounded-xl ${t.icon}`}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11 ${t.icon}`}
         >
           {icon}
         </div>

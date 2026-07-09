@@ -112,7 +112,13 @@ function Icon({ d }: { d: string }) {
   );
 }
 
-function SidebarContent() {
+function SidebarContent({
+  onNavigate,
+  hideBrand = false,
+}: {
+  onNavigate?: () => void;
+  hideBrand?: boolean;
+}) {
   const pathname = usePathname();
   const [openGroups, setOpenGroups] = useState<string[]>(["Purchase", "Stock"]);
 
@@ -124,14 +130,18 @@ function SidebarContent() {
 
   return (
     <>
-      <div className="flex items-center gap-2 px-5 py-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-400 text-sm font-black text-white">
-          Rx
+      {!hideBrand && (
+        <div className="flex items-center gap-2 px-5 py-6">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-400 text-sm font-black text-white">
+            Rx
+          </div>
+          <span className="text-lg font-bold text-white">PharmaStock</span>
         </div>
-        <span className="text-lg font-bold text-white">PharmaStock</span>
-      </div>
+      )}
 
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-6">
+      <nav
+        className={`flex-1 space-y-0.5 overflow-y-auto px-3 pb-6 ${hideBrand ? "pt-3" : ""}`}
+      >
         {navItems.map((item) => {
           if (item.type === "link") {
             const active = isActive(pathname, item.href);
@@ -139,6 +149,7 @@ function SidebarContent() {
               <Link
                 key={item.label}
                 href={item.href}
+                onClick={onNavigate}
                 className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                   active
                     ? "bg-indigo-600 text-white shadow-sm shadow-indigo-900/40"
@@ -191,6 +202,7 @@ function SidebarContent() {
                     <Link
                       key={child.href}
                       href={child.href}
+                      onClick={onNavigate}
                       className={`block rounded-lg px-3 py-2 text-sm transition-colors ${
                         isActive(pathname, child.href)
                           ? "font-medium text-indigo-400"
@@ -218,10 +230,4 @@ export function Sidebar() {
   );
 }
 
-export function MobileNav() {
-  return (
-    <div className="max-h-64 overflow-y-auto border-b border-slate-800 bg-[#10172A] md:hidden">
-      <SidebarContent />
-    </div>
-  );
-}
+export { SidebarContent };

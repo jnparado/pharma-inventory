@@ -24,18 +24,18 @@ export function DashboardCharts({
   todayTotal: number;
 }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-5">
-      <div className="rounded-2xl bg-white p-5 shadow-sm lg:col-span-3">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-slate-800">
+    <div className="grid min-w-0 gap-6 lg:grid-cols-5">
+      <div className="min-w-0 rounded-2xl bg-white p-4 shadow-sm sm:p-5 lg:col-span-3">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-800 sm:text-base">
             Monthly Progress
           </h3>
-          <span className="rounded-lg border border-slate-200 px-3 py-1 text-xs text-slate-500">
+          <span className="shrink-0 rounded-lg border border-slate-200 px-3 py-1 text-xs text-slate-500">
             Monthly
           </span>
         </div>
-        <div className="h-56">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-56 min-h-[14rem] w-full min-w-0">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart data={monthlyData} barSize={14}>
               <XAxis
                 dataKey="month"
@@ -56,9 +56,7 @@ export function DashboardCharts({
                   <Cell
                     key={entry.month}
                     fill={
-                      i === new Date().getMonth()
-                        ? "#0d9488"
-                        : "#86efac"
+                      i === new Date().getMonth() ? "#0d9488" : "#86efac"
                     }
                   />
                 ))}
@@ -68,14 +66,14 @@ export function DashboardCharts({
         </div>
       </div>
 
-      <div className="rounded-2xl bg-white p-5 shadow-sm lg:col-span-2">
-        <h3 className="mb-1 text-base font-semibold text-slate-800">
+      <div className="min-w-0 rounded-2xl bg-white p-4 shadow-sm sm:p-5 lg:col-span-2">
+        <h3 className="mb-1 text-sm font-semibold text-slate-800 sm:text-base">
           Today&apos;s Report
         </h3>
         <p className="mb-4 text-xs text-slate-400">Sales by payment method</p>
-        <div className="flex items-center gap-4">
-          <div className="h-40 w-40 shrink-0">
-            <ResponsiveContainer width="100%" height="100%">
+        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
+          <div className="h-36 w-full max-w-[9rem] shrink-0 sm:h-40 sm:w-40">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <PieChart>
                 <Pie
                   data={todayBreakdown}
@@ -91,16 +89,16 @@ export function DashboardCharts({
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div>
+          <div className="w-full text-center sm:text-left">
             <p className="text-xs text-slate-400">Total earning</p>
-            <p className="text-2xl font-bold text-slate-800">
+            <p className="text-xl font-bold text-slate-800 sm:text-2xl">
               ₱{todayTotal.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
             </p>
             <ul className="mt-3 space-y-1.5">
               {todayBreakdown.map((s) => (
-                <li key={s.name} className="flex items-center gap-2 text-xs">
+                <li key={s.name} className="flex items-center justify-center gap-2 text-xs sm:justify-start">
                   <span
-                    className="h-2.5 w-2.5 rounded-full"
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ background: s.color }}
                   />
                   <span className="text-slate-600">{s.name}</span>
@@ -119,7 +117,7 @@ export function Sparkline({ value, max }: { value: number; max: number }) {
     (f) => Math.max(4, (value / Math.max(max, 1)) * 24 * f)
   );
   return (
-    <svg width="56" height="24" className="inline-block">
+    <svg width="56" height="24" className="inline-block shrink-0">
       {bars.map((h, i) => (
         <rect
           key={i}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { DashboardCharts, Sparkline } from "@/components/dashboard-charts";
 import { KpiCard } from "@/components/kpi-card";
-import { SetupNotice } from "@/components/ui";
+import { SetupNotice, TableScroll } from "@/components/ui";
 import { getDashboardData } from "@/lib/dashboard";
 import { isSupabaseConfigured } from "@/lib/data";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -29,7 +29,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Total Customer"
           value={data.customerCount}
@@ -75,19 +75,20 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-slate-800">
+        <div className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-slate-800 sm:text-base">
               Expiring List
             </h3>
             <Link
               href="/expiry"
-              className="text-xs font-medium text-teal-600 hover:underline"
+              className="shrink-0 text-xs font-medium text-teal-600 hover:underline"
             >
               See All
             </Link>
           </div>
-          <table className="w-full text-sm">
+          <TableScroll>
+            <table className="w-full min-w-[480px] text-sm">
             <thead>
               <tr className="text-left text-xs text-slate-400">
                 <th className="pb-3 font-medium">Medicine name</th>
@@ -124,21 +125,23 @@ export default async function DashboardPage() {
               )}
             </tbody>
           </table>
+          </TableScroll>
         </div>
 
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-slate-800">
+        <div className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-slate-800 sm:text-base">
               Recent Orders
             </h3>
             <Link
               href="/orders"
-              className="text-xs font-medium text-teal-600 hover:underline"
+              className="shrink-0 text-xs font-medium text-teal-600 hover:underline"
             >
               See All
             </Link>
           </div>
-          <table className="w-full text-sm">
+          <TableScroll>
+            <table className="w-full min-w-[520px] text-sm">
             <thead>
               <tr className="text-left text-xs text-slate-400">
                 <th className="pb-3 font-medium">Medicine name</th>
@@ -186,6 +189,7 @@ export default async function DashboardPage() {
               )}
             </tbody>
           </table>
+          </TableScroll>
         </div>
       </div>
 

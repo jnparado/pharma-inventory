@@ -1,6 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { MobileNav, Sidebar } from "@/components/sidebar";
+import { AppShell } from "@/components/app-shell";
 import { TopBarWrapper } from "@/components/top-bar-wrapper";
 import "./globals.css";
 
@@ -20,6 +20,11 @@ export const metadata: Metadata = {
     "Pharmacy inventory with POS, sales reports, AI forecasting, and stock management.",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -30,15 +35,11 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-[#f4f7fe] font-sans text-slate-900">
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <div className="flex min-h-screen flex-1 flex-col md:pl-56">
-            <MobileNav />
-            <TopBarWrapper />
-            <main className="flex-1 p-4 md:p-8">{children}</main>
-          </div>
-        </div>
+      <body className="min-h-full overflow-x-hidden bg-[#f4f7fe] font-sans text-slate-900">
+        <AppShell>
+          <TopBarWrapper />
+          <main className="min-w-0 flex-1 p-4 sm:p-6 md:p-8">{children}</main>
+        </AppShell>
       </body>
     </html>
   );
