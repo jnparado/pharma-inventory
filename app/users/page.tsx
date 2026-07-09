@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createUser, deleteUser, updateUser } from "@/app/actions/user";
+import { createUser, deleteUser, linkAuthUser, updateUser } from "@/app/actions/user";
 import { RoleSelect } from "@/components/role-select";
 import {
   Badge,
@@ -12,6 +12,7 @@ import {
   inputClass,
   labelClass,
 } from "@/components/ui";
+import { listAuthUsersForLogin } from "@/lib/auth-users";
 import {
   getBranches,
   getUserById,
@@ -60,11 +61,14 @@ export default async function UsersPage({
     );
   }
 
-  const [users, branches, editing] = await Promise.all([
+  const [users, branches, editing, authUsers] = await Promise.all([
     getUsers(),
     getBranches(),
     edit ? getUserById(edit) : Promise.resolve(null),
+    listAuthUsersForLogin().catch(() => []),
   ]);
+
+  const unlinkedAuthUsers = authUsers.filter((u) => !u.has_profile);
 
   return (
     <>
@@ -73,6 +77,49 @@ export default async function UsersPage({
         description="Create staff accounts and assign roles and permissions."
       />
       <FlashMessage success={success} error={error} />
+
+      {unlinkedAuthUsers.length > 0 && (
+        <Card title="Supabase Auth users (not linked)" className="mb-6">
+          <p className="mb-4 text-sm text-slate-600">
+            These accounts exist in Supabase Authentication but are not linked
+            to a staff profile yet.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                  <th className="pb-2 font-medium">Name</th>
+                  <th className="pb-2 font-medium">Email</th>
+                  <th className="pb-2 font-medium">Role</th>
+                  <th className="pb-2 font-medium" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {unlinkedAuthUsers.map((u) => (
+                  <tr key={u.id}>
+                    <td className="py-3 font-medium text-slate-700">
+                      {u.full_name}
+                    </td>
+                    <td className="py-3">{u.email}</td>
+                    <td className="py-3 capitalize">{u.role}</td>
+                    <td className="py-3 text-right">
+                      <form action={linkAuthUser}>
+                        <input type="hidden" name="auth_id" value={u.id} />
+                        <button
+                          type="submit"
+                          className="text-xs font-medium text-teal-600 hover:underline"
+                        >
+                          Link profile
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {editing && (
         <Card title="Edit user" className="mb-6">

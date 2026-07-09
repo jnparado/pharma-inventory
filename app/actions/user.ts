@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-guard";
+import { ensureUserProfileFromAuth } from "@/lib/auth-users";
 import { getUserByEmail, getUserById } from "@/lib/data";
 import { isAdmin } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -55,6 +56,28 @@ export async function updateUserProfile(formData: FormData) {
 
   revalidateUserPaths();
   redirect("/profile?success=Profile updated successfully");
+}
+
+export async function linkAuthUser(formData: FormData) {
+  await requireAdmin("/users");
+  const authId = String(formData.get("auth_id") ?? "");
+  if (!authId) redirect("/users?error=Missing%20auth%20user");
+
+  const supabase = createAdminClient();
+  const { data: authData, error: authError } =
+    await supabase.auth.admin.getUserById(authId);
+
+  if (authError || !authData.user) {
+    redirect(`/users?error=${encodeURIComponent(authError?.message ?? "Auth user not found")}`);
+  }
+
+  const profile = await ensureUserProfileFromAuth(authData.user);
+  if (!profile) {
+    redirect("/users?error=Failed%20to%20link%20profile");
+  }
+
+  revalidateUserPaths();
+  redirect("/users?success=Auth%20user%20linked%20to%20staff%20profile");
 }
 
 export async function createUser(formData: FormData) {

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { ensureUserProfileFromAuth } from "@/lib/auth-users";
 import { createClient } from "@/lib/supabase/server";
 
 export async function signIn(formData: FormData) {
@@ -9,14 +10,21 @@ export async function signIn(formData: FormData) {
   const next = String(formData.get("next") ?? "/").trim() || "/";
 
   if (!email || !password) {
-    redirect("/login?error=Enter%20your%20email%20and%20password");
+    redirect("/login?error=Select%20an%20account%20and%20enter%20your%20password");
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
 
   if (error) {
     redirect(`/login?error=${encodeURIComponent(error.message)}`);
+  }
+
+  if (data.user) {
+    await ensureUserProfileFromAuth(data.user);
   }
 
   redirect(next.startsWith("/") ? next : "/");

@@ -46,40 +46,42 @@ export function TopBar({
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-700/60 bg-[#151f33]">
-      <div className="flex items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4 md:px-8">
-        <button
-          type="button"
-          onClick={toggleMenu}
-          className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-700/50 hover:text-slate-200 md:hidden"
-          aria-label="Open menu"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
-
-        <div className="relative min-w-0 flex-1 md:max-w-xl lg:max-w-2xl">
-          <svg
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+      <div className="flex w-full items-center justify-between gap-2 px-3 py-3 sm:gap-3 sm:px-4 md:px-8">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={toggleMenu}
+            className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-700/50 hover:text-slate-200 md:hidden"
+            aria-label="Open menu"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+
+          <div className="relative min-w-0 w-full max-w-xl lg:max-w-2xl">
+            <svg
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            <input
+              type="search"
+              placeholder="Search products, SKU, invoices…"
+              className="w-full rounded-xl border border-slate-600 bg-[#10172A] py-2 pl-10 pr-3 text-sm text-slate-200 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             />
-          </svg>
-          <input
-            type="search"
-            placeholder="Search products, SKU, invoices…"
-            className="w-full rounded-xl border border-slate-600 bg-[#10172A] py-2 pl-10 pr-3 text-sm text-slate-200 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-          />
+          </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
           <div className="relative" ref={notifRef}>
             <button
               type="button"

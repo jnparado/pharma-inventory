@@ -1,11 +1,6 @@
-import { signIn } from "@/app/actions/auth";
-import {
-  FlashMessage,
-  SetupNotice,
-  buttonClass,
-  inputClass,
-  labelClass,
-} from "@/components/ui";
+import { LoginForm } from "@/components/login-form";
+import { FlashMessage, SetupNotice } from "@/components/ui";
+import { listAuthUsersForLogin } from "@/lib/auth-users";
 import { isSupabaseConfigured } from "@/lib/data";
 
 export default async function LoginPage({
@@ -25,6 +20,15 @@ export default async function LoginPage({
     );
   }
 
+  let authUsers: Awaited<ReturnType<typeof listAuthUsersForLogin>> = [];
+  let loadError: string | undefined;
+
+  try {
+    authUsers = await listAuthUsersForLogin();
+  } catch (e) {
+    loadError = (e as Error).message;
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#10172A] p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
@@ -34,49 +38,20 @@ export default async function LoginPage({
           </div>
           <h1 className="text-2xl font-bold text-slate-900">PharmaStock</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Sign in to manage pharmacy inventory
+            Sign in to open your dashboard
           </p>
         </div>
 
-        <FlashMessage error={error} />
+        {loadError && <FlashMessage error={loadError} />}
 
-        <form action={signIn} className="space-y-4">
-          <input type="hidden" name="next" value={next ?? "/"} />
-          <div>
-            <label className={labelClass} htmlFor="email">
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              placeholder="you@pharmacy.ph"
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="password">
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              placeholder="••••••••"
-              className={inputClass}
-            />
-          </div>
-          <button type="submit" className={`${buttonClass} w-full`}>
-            Sign in
-          </button>
-        </form>
+        <LoginForm
+          authUsers={authUsers}
+          next={next ?? "/"}
+          initialError={error}
+        />
 
         <p className="mt-6 text-center text-xs text-slate-400">
-          Accounts are created by an admin in User Accounts.
+          Admins can add login accounts in User Accounts.
         </p>
       </div>
     </div>
