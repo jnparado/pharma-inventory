@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ProductInventoryLine } from "@/lib/types";
 
 export type ProductEntryInput = {
   entry_date: string;
@@ -12,6 +13,26 @@ export type ProductEntryInput = {
   selling_price_retail: number;
 };
 
+type BatchRow = {
+  id: string;
+  product_id: string | null;
+  batch_number: string;
+  expiry_date: string | null;
+  quantity_remaining: number | null;
+  purchase_price: number | null;
+  received_date?: string | null;
+  created_at: string | null;
+  products: unknown;
+};
+
+const INVENTORY_SELECTS = [
+  "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, received_date, created_at, products(product_name, brand_name, selling_price, selling_price_ws)",
+  "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, created_at, products(product_name, brand_name, selling_price, selling_price_ws)",
+  "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, received_date, created_at, products(product_name, brand_name, selling_price)",
+  "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, created_at, products(product_name, brand_name, selling_price)",
+  "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, created_at, products(product_name, selling_price)",
+] as const;
+
 function missingColumn(message: string, column: string): boolean {
   const lower = message.toLowerCase();
   return (
@@ -20,9 +41,77 @@ function missingColumn(message: string, column: string): boolean {
   );
 }
 
+function parseProductJoin(value: unknown) {
+  const product = value as {
+    product_name?: string;
+    brand_name?: string | null;
+    selling_price?: number;
+    selling_price_ws?: number | null;
+  } | null;
+
+  return {
+    product_name: product?.product_name ?? "Unknown",
+    brand: product?.brand_name ?? null,
+    selling_price_ws: product?.selling_price_ws ?? null,
+    selling_price_retail: Number(product?.selling_price ?? 0),
+  };
+}
+
+export function mapBatchRowToInventoryLine(row: BatchRow): ProductInventoryLine {
+  const product = parseProductJoin(row.products);
+
+  return {
+    batch_id: row.id,
+    product_id: row.product_id ?? "",
+    entry_date: row.received_date ?? row.created_at?.slice(0, 10) ?? null,
+    product_name: product.product_name,
+    brand: product.brand,
+    quantity: row.quantity_remaining ?? 0,
+    lot_number: row.batch_number,
+    expiry_date: row.expiry_date,
+    cost: row.purchase_price,
+    selling_price_ws: product.selling_price_ws,
+    selling_price_retail: product.selling_price_retail,
+  };
+}
+
+export async function fetchProductInventoryRows(
+  supabase: SupabaseClient,
+  batchId?: string
+): Promise<ProductInventoryLine[]> {
+  let lastError = "Could not load product inventory";
+
+  for (const select of INVENTORY_SELECTS) {
+    let query = supabase
+      .from("product_batches")
+      .select(select)
+      .order("created_at", { ascending: false });
+
+    if (batchId) {
+      query = query.eq("id", batchId);
+    }
+
+    const { data, error } = await query;
+    if (!error) {
+      return ((data ?? []) as unknown as BatchRow[]).map(mapBatchRowToInventoryLine);
+    }
+
+    lastError = error.message;
+    const isSchemaError = select
+      .split(",")
+      .some((part) => missingColumn(error.message, part.trim().split("(")[0].trim()));
+    if (!isSchemaError && !missingColumn(error.message, "products")) {
+      break;
+    }
+  }
+
+  throw new Error(`Failed to load product inventory: ${lastError}`);
+}
+
 function skuFromLot(lotNumber: string): string {
   const cleaned = lotNumber.trim().replace(/\s+/g, "-").toUpperCase();
-  return cleaned.startsWith("LOT-") ? cleaned : `LOT-${cleaned}`;
+  const base = cleaned.startsWith("LOT-") ? cleaned : `LOT-${cleaned}`;
+  return `${base}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
 }
 
 export async function insertProductEntry(
@@ -111,13 +200,19 @@ export async function insertProductEntry(
     return { error: lastBatchError };
   }
 
-  await supabase.from("inventory_transactions").insert({
+  const { error: txError } = await supabase.from("inventory_transactions").insert({
     product_id: productId,
     batch_id: batchId,
     transaction_type: "stock_in",
     quantity: input.quantity,
     reference_no: `Entry ${input.lot_number.trim()}`,
   });
+
+  if (txError) {
+    await supabase.from("product_batches").delete().eq("id", batchId);
+    await supabase.from("products").delete().eq("id", productId);
+    return { error: txError.message };
+  }
 
   return { error: null, productId, batchId };
 }

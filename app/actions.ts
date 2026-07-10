@@ -38,21 +38,38 @@ function parseProductEntry(formData: FormData) {
 }
 
 export async function createProduct(formData: FormData) {
-  await requireAdmin("/products");
-  const supabase = createAdminClient();
-  const input = parseProductEntry(formData);
+  try {
+    await requireAdmin("/products");
+    const supabase = createAdminClient();
+    const input = parseProductEntry(formData);
 
-  if (!input.product_name || !input.lot_number) {
-    redirect("/products?error=Product name and lot number are required");
-  }
-  if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
-    redirect("/products?error=Enter a valid quantity");
-  }
+    if (!input.product_name || !input.lot_number) {
+      redirect("/products?error=Product name and lot number are required");
+    }
+    if (!input.brand) {
+      redirect("/products?error=Brand is required");
+    }
+    if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
+      redirect("/products?error=Enter a valid quantity");
+    }
 
-  const { error } = await insertProductEntry(supabase, input);
-  if (error) redirect(`/products?error=${encodeURIComponent(error)}`);
-  revalidateInventory("products", "stock", "dashboard");
-  redirect("/products?success=Product added");
+    const { error } = await insertProductEntry(supabase, input);
+    if (error) redirect(`/products?error=${encodeURIComponent(error)}`);
+    revalidateInventory("products", "stock", "dashboard");
+    redirect("/products?success=Product added");
+  } catch (e) {
+    if (
+      e &&
+      typeof e === "object" &&
+      "digest" in e &&
+      String((e as { digest?: string }).digest).startsWith("NEXT_REDIRECT")
+    ) {
+      throw e;
+    }
+    redirect(
+      `/products?error=${encodeURIComponent((e as Error).message ?? "Could not add product")}`
+    );
+  }
 }
 
 export async function updateProduct(formData: FormData) {

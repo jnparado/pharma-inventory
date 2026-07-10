@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { normalizeCustomer } from "@/lib/customers-db";
+import { fetchProductInventoryRows } from "@/lib/products-db";
 import { isSupabaseConfigured } from "@/lib/env";
 import { getSalesMetrics } from "@/lib/sales-metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -133,75 +134,15 @@ export async function getProductById(id: string): Promise<Product | null> {
 
 export async function getProductInventoryLines(): Promise<ProductInventoryLine[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("product_batches")
-    .select(
-      "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, received_date, created_at, products(product_name, brand_name, selling_price, selling_price_ws)"
-    )
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    throw new Error(`Failed to load product inventory: ${error.message}`);
-  }
-
-  return (data ?? []).map((row) => {
-    const product = row.products as unknown as {
-      product_name: string;
-      brand_name: string | null;
-      selling_price: number;
-      selling_price_ws: number | null;
-    } | null;
-
-    return {
-      batch_id: row.id,
-      product_id: row.product_id ?? "",
-      entry_date: row.received_date ?? row.created_at?.slice(0, 10) ?? null,
-      product_name: product?.product_name ?? "Unknown",
-      brand: product?.brand_name ?? null,
-      quantity: row.quantity_remaining ?? 0,
-      lot_number: row.batch_number,
-      expiry_date: row.expiry_date,
-      cost: row.purchase_price,
-      selling_price_ws: product?.selling_price_ws ?? null,
-      selling_price_retail: Number(product?.selling_price ?? 0),
-    };
-  });
+  return fetchProductInventoryRows(supabase);
 }
 
 export async function getProductInventoryLineByBatchId(
   batchId: string
 ): Promise<ProductInventoryLine | null> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("product_batches")
-    .select(
-      "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, received_date, created_at, products(product_name, brand_name, selling_price, selling_price_ws)"
-    )
-    .eq("id", batchId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-
-  const product = data.products as unknown as {
-    product_name: string;
-    brand_name: string | null;
-    selling_price: number;
-    selling_price_ws: number | null;
-  } | null;
-
-  return {
-    batch_id: data.id,
-    product_id: data.product_id ?? "",
-    entry_date: data.received_date ?? data.created_at?.slice(0, 10) ?? null,
-    product_name: product?.product_name ?? "Unknown",
-    brand: product?.brand_name ?? null,
-    quantity: data.quantity_remaining ?? 0,
-    lot_number: data.batch_number,
-    expiry_date: data.expiry_date,
-    cost: data.purchase_price,
-    selling_price_ws: product?.selling_price_ws ?? null,
-    selling_price_retail: Number(product?.selling_price ?? 0),
-  };
+  const lines = await fetchProductInventoryRows(supabase, batchId);
+  return lines[0] ?? null;
 }
 
 export async function getSupplierById(id: string): Promise<Supplier | null> {
