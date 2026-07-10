@@ -4,6 +4,15 @@ import { fetchProductInventoryRows } from "@/lib/products-db";
 import { isSupabaseConfigured } from "@/lib/env";
 import { getSalesMetrics } from "@/lib/sales-metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  BATCH_WITH_PRODUCT_SELECTS,
+  isSchemaError,
+  normalizeBatchRows,
+  normalizeJoinedProduct,
+  SALE_DETAIL_SELECTS,
+  SALE_WITH_ITEMS_SELECTS,
+  TRANSACTION_SELECTS,
+} from "@/lib/supabase/schema-fallback";
 import { expiryStatus } from "@/lib/utils";
 import type {
   BatchWithProduct,
@@ -212,46 +221,142 @@ export async function getExpiringBatches(
   limit: number
 ): Promise<BatchWithProduct[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("product_batches")
-    .select(
-      "*, products(product_name, sku, unit, selling_price), suppliers(company_name)"
-    )
-    .gt("quantity_remaining", 0)
-    .not("expiry_date", "is", null)
-    .order("expiry_date", { ascending: true })
-    .limit(Math.max(limit * 4, 24));
+  const batchLimit = Math.max(limit * 4, 24);
 
-  if (error) throw new Error(`Failed to load expiring batches: ${error.message}`);
+  for (const select of BATCH_WITH_PRODUCT_SELECTS) {
+    const { data, error } = await supabase
+      .from("product_batches")
+      .select(select)
+      .gt("quantity_remaining", 0)
+      .not("expiry_date", "is", null)
+      .order("expiry_date", { ascending: true })
+      .limit(batchLimit);
 
-  return (data as unknown as BatchWithProduct[])
+    if (!error) {
+      return normalizeBatchRows(data ?? [])
+        .filter((b) => b.expiry_date && expiryStatus(b.expiry_date) !== "ok")
+        .slice(0, limit);
+    }
+
+    if (!isSchemaError(error.message)) break;
+  }
+
+  return getExpiringFromFlatProducts(supabase, limit);
+}
+
+async function getExpiringFromFlatProducts(
+  supabase: ReturnType<typeof createAdminClient>,
+  limit: number
+): Promise<BatchWithProduct[]> {
+  const { data, error } = await supabase.from("products").select("*");
+  if (error) return [];
+
+  return (data as Record<string, unknown>[])
+    .map((row) => {
+      const expiry =
+        (row.expiry_date as string | null) ?? (row.exp_date as string | null);
+      const qty = Number(row.quantity ?? 0);
+      if (!expiry || qty <= 0) return null;
+
+      const product = normalizeJoinedProduct(row);
+      const batch: BatchWithProduct = {
+        id: String(row.id),
+        product_id: String(row.id),
+        supplier_id: null,
+        batch_number: String(row.lot_number ?? row.batch_number ?? "—"),
+        manufacture_date: null,
+        expiry_date: expiry,
+        purchase_price: row.cost != null ? Number(row.cost) : null,
+        quantity_received: qty,
+        quantity_remaining: qty,
+        created_at: (row.created_at as string | null) ?? null,
+        products: product,
+        suppliers: null,
+      };
+      return batch;
+    })
+    .filter((b): b is BatchWithProduct => b !== null)
     .filter((b) => b.expiry_date && expiryStatus(b.expiry_date) !== "ok")
+    .sort((a, b) =>
+      (a.expiry_date ?? "") < (b.expiry_date ?? "") ? -1 : 1
+    )
     .slice(0, limit);
 }
 
 export async function getBatches(): Promise<BatchWithProduct[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("product_batches")
-    .select(
-      "*, products(product_name, sku, unit, selling_price), suppliers(company_name)"
-    )
-    .order("expiry_date", { ascending: true, nullsFirst: false });
-  if (error) throw new Error(`Failed to load batches: ${error.message}`);
-  return data as unknown as BatchWithProduct[];
+
+  for (const select of BATCH_WITH_PRODUCT_SELECTS) {
+    const { data, error } = await supabase
+      .from("product_batches")
+      .select(select)
+      .order("expiry_date", { ascending: true, nullsFirst: false });
+
+    if (!error) return normalizeBatchRows(data ?? []);
+    if (!isSchemaError(error.message)) break;
+  }
+
+  const { data, error } = await supabase.from("products").select("*");
+  if (error) return [];
+
+  return (data as Record<string, unknown>[])
+    .map((row) => {
+      const expiry =
+        (row.expiry_date as string | null) ?? (row.exp_date as string | null);
+      const qty = Number(row.quantity ?? 0);
+      return {
+        id: String(row.id),
+        product_id: String(row.id),
+        supplier_id: null,
+        batch_number: String(row.lot_number ?? row.batch_number ?? "—"),
+        manufacture_date: null,
+        expiry_date: expiry,
+        purchase_price: row.cost != null ? Number(row.cost) : null,
+        quantity_received: qty,
+        quantity_remaining: qty,
+        created_at: (row.created_at as string | null) ?? null,
+        products: normalizeJoinedProduct(row),
+        suppliers: null,
+      } satisfies BatchWithProduct;
+    })
+    .sort((a, b) =>
+      (a.expiry_date ?? "") < (b.expiry_date ?? "") ? -1 : 1
+    );
 }
 
 export async function getTransactions(
   limit = 100
 ): Promise<TransactionWithProduct[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("inventory_transactions")
-    .select("*, products(product_name, sku, unit), product_batches(batch_number)")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(`Failed to load transactions: ${error.message}`);
-  return data as unknown as TransactionWithProduct[];
+
+  for (const select of TRANSACTION_SELECTS) {
+    const { data, error } = await supabase
+      .from("inventory_transactions")
+      .select(select)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (!error) {
+      return (data ?? []).map((row) => {
+        const tx = row as unknown as TransactionWithProduct & {
+          products?: Record<string, unknown> | null;
+        };
+        const normalized = normalizeJoinedProduct(tx.products ?? null);
+        if (normalized) {
+          tx.products = {
+            product_name: normalized.product_name,
+            sku: normalized.sku,
+            unit: normalized.unit,
+          };
+        }
+        return tx as TransactionWithProduct;
+      });
+    }
+
+    if (!isSchemaError(error.message)) break;
+  }
+
+  return [];
 }
 
 export async function getProductByCode(code: string) {
@@ -365,37 +470,55 @@ export async function getBranchStockSummary() {
 
 export async function getSales(limit = 100): Promise<SaleWithItems[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("sales")
-    .select("*, sale_items(*, products(product_name, sku, unit))")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(`Failed to load sales: ${error.message}`);
-  return data as unknown as SaleWithItems[];
+
+  for (const select of SALE_DETAIL_SELECTS) {
+    const { data, error } = await supabase
+      .from("sales")
+      .select(select)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (!error) return data as unknown as SaleWithItems[];
+    if (!isSchemaError(error.message)) break;
+  }
+
+  return [];
 }
 
 export async function getSaleById(id: string): Promise<SaleWithItems | null> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("sales")
-    .select("*, sale_items(*, products(product_name, sku, unit))")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw new Error(`Failed to load sale: ${error.message}`);
-  return data as unknown as SaleWithItems | null;
+
+  for (const select of SALE_DETAIL_SELECTS) {
+    const { data, error } = await supabase
+      .from("sales")
+      .select(select)
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!error) return data as unknown as SaleWithItems | null;
+    if (!isSchemaError(error.message)) break;
+  }
+
+  return null;
 }
 
 export async function getSaleByInvoice(
   invoiceNumber: string
 ): Promise<SaleWithItems | null> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("sales")
-    .select("*, sale_items(*, products(product_name, sku, unit))")
-    .eq("invoice_number", invoiceNumber)
-    .maybeSingle();
-  if (error) throw new Error(`Failed to load sale: ${error.message}`);
-  return data as unknown as SaleWithItems | null;
+
+  for (const select of SALE_DETAIL_SELECTS) {
+    const { data, error } = await supabase
+      .from("sales")
+      .select(select)
+      .eq("invoice_number", invoiceNumber)
+      .maybeSingle();
+
+    if (!error) return data as unknown as SaleWithItems | null;
+    if (!isSchemaError(error.message)) break;
+  }
+
+  return null;
 }
 
 export async function getSalesReportSummary(): Promise<SalesReportSummary> {

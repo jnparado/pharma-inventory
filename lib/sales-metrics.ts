@@ -1,5 +1,9 @@
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  isSchemaError,
+  SALE_WITH_ITEMS_SELECTS,
+} from "@/lib/supabase/schema-fallback";
 import type { SaleWithItems, SalesReportSummary } from "@/lib/types";
 
 function computeSalesSummary(sales: SaleWithItems[]): SalesReportSummary {
@@ -75,19 +79,27 @@ function computeSalesSummary(sales: SaleWithItems[]): SalesReportSummary {
 /** One cached sales fetch shared by dashboard and reports. */
 export const getSalesMetrics = cache(async () => {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("sales")
-    .select(
-      "id, total_amount, created_at, payment_method, invoice_number, sale_items(quantity, subtotal, unit_price, product_id, products(product_name, sku, unit))"
-    )
-    .order("created_at", { ascending: false })
-    .limit(500);
 
-  if (error) throw new Error(`Failed to load sales: ${error.message}`);
+  for (const select of SALE_WITH_ITEMS_SELECTS) {
+    const { data, error } = await supabase
+      .from("sales")
+      .select(select)
+      .order("created_at", { ascending: false })
+      .limit(500);
 
-  const sales = (data ?? []) as unknown as SaleWithItems[];
+    if (!error) {
+      const sales = (data ?? []) as unknown as SaleWithItems[];
+      return {
+        sales,
+        summary: computeSalesSummary(sales),
+      };
+    }
+
+    if (!isSchemaError(error.message)) break;
+  }
+
   return {
-    sales,
-    summary: computeSalesSummary(sales),
+    sales: [] as SaleWithItems[],
+    summary: computeSalesSummary([]),
   };
 });

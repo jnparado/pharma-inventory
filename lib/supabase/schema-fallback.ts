@@ -1,0 +1,73 @@
+import type { BatchWithProduct } from "@/lib/types";
+
+export function isSchemaError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("column") ||
+    lower.includes("schema cache") ||
+    lower.includes("does not exist")
+  );
+}
+
+export const BATCH_WITH_PRODUCT_SELECTS = [
+  "*, products(product_name, sku, unit, selling_price), suppliers(company_name)",
+  "*, products(product_name, unit, selling_price), suppliers(company_name)",
+  "*, products(product_name, selling_price_retail, selling_price_ws), suppliers(company_name)",
+  "*, products(product_name, selling_price_retail), suppliers(company_name)",
+  "*, products(product_name, brand_name, selling_price_retail)",
+  "*, products(product_name)",
+  "*",
+] as const;
+
+export const TRANSACTION_SELECTS = [
+  "*, products(product_name, sku, unit), product_batches(batch_number)",
+  "*, products(product_name, unit), product_batches(batch_number)",
+  "*, products(product_name), product_batches(batch_number)",
+  "*",
+] as const;
+
+export const SALE_WITH_ITEMS_SELECTS = [
+  "id, total_amount, created_at, payment_method, invoice_number, sale_items(quantity, subtotal, unit_price, product_id, products(product_name, sku, unit))",
+  "id, total_amount, created_at, payment_method, invoice_number, sale_items(quantity, subtotal, unit_price, product_id, products(product_name, unit))",
+  "id, total_amount, created_at, payment_method, invoice_number, sale_items(quantity, subtotal, unit_price, product_id, products(product_name))",
+  "id, total_amount, created_at, payment_method, invoice_number, sale_items(quantity, subtotal, unit_price, product_id)",
+] as const;
+
+export const SALE_DETAIL_SELECTS = [
+  "*, sale_items(*, products(product_name, sku, unit))",
+  "*, sale_items(*, products(product_name, unit))",
+  "*, sale_items(*, products(product_name))",
+  "*, sale_items(*)",
+] as const;
+
+export function normalizeJoinedProduct(
+  product: Record<string, unknown> | null | undefined
+): {
+  product_name: string;
+  sku: string;
+  unit: string;
+  selling_price: number;
+} | null {
+  if (!product) return null;
+  return {
+    product_name: String(product.product_name ?? "Unknown"),
+    sku: String(product.sku ?? product.lot_number ?? "—"),
+    unit: String(product.unit ?? "pcs"),
+    selling_price: Number(
+      product.selling_price ?? product.selling_price_retail ?? product.price ?? 0
+    ),
+  };
+}
+
+export function normalizeBatchRows(data: unknown[]): BatchWithProduct[] {
+  return (data ?? []).map((row) => {
+    const batch = row as BatchWithProduct & {
+      products?: Record<string, unknown> | null;
+    };
+    const normalized = normalizeJoinedProduct(batch.products ?? null);
+    if (normalized) {
+      batch.products = normalized;
+    }
+    return batch as BatchWithProduct;
+  });
+}

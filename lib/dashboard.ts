@@ -27,10 +27,22 @@ export async function getDashboardData() {
   const supabase = createAdminClient();
   const [products, metrics, orders, expiringList, customersRes] =
     await Promise.all([
-      getProductsWithStock(),
-      getSalesMetrics(),
-      getPurchaseOrders(),
-      getExpiringBatches(6),
+      getProductsWithStock().catch(() => []),
+      getSalesMetrics().catch(() => ({
+        sales: [],
+        summary: {
+          today_total: 0,
+          today_count: 0,
+          week_total: 0,
+          week_count: 0,
+          month_total: 0,
+          month_count: 0,
+          all_time_total: 0,
+          top_products: [],
+        },
+      })),
+      getPurchaseOrders().catch(() => []),
+      getExpiringBatches(6).catch(() => []),
       supabase.from("customers").select("id", { count: "exact", head: true }),
     ]);
 
