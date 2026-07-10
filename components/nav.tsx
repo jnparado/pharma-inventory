@@ -10,7 +10,7 @@ const sections = [
       { href: "/", label: "Dashboard", icon: "M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10" },
       {
         href: "/products",
-        label: "Products",
+        label: "Product",
         icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
       },
       {

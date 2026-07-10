@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import {
+  getProductInventoryLines,
   getBatches,
   getCustomers,
-  getProductsWithStock,
   getPurchaseOrders,
   getSales,
   getSuppliers,
@@ -123,39 +123,33 @@ async function exportSales(format: string) {
 }
 
 async function exportInventory(format: string) {
-  const products = await getProductsWithStock();
-  const rows = products.map((p) => [
-    p.sku,
-    p.barcode ?? "",
-    p.product_name,
-    p.generic_name ?? "",
-    p.brand_name ?? "",
-    p.categories?.name ?? "",
-    p.unit ?? "",
-    p.selling_price,
-    p.total_stock,
-    p.reorder_level ?? 0,
-    p.nearest_expiry ? formatDate(p.nearest_expiry) : "",
-    p.requires_prescription ? "Yes" : "No",
+  const lines = await getProductInventoryLines();
+  const rows = lines.map((line) => [
+    line.entry_date ? formatDate(line.entry_date) : "",
+    line.product_name,
+    line.brand ?? "",
+    line.quantity,
+    line.lot_number,
+    line.expiry_date ? formatDate(line.expiry_date) : "",
+    line.cost ?? 0,
+    line.selling_price_ws ?? 0,
+    line.selling_price_retail,
   ]);
 
   const headers = [
-    "SKU",
-    "Barcode",
+    "Date",
     "Product Name",
-    "Generic Name",
     "Brand",
-    "Category",
-    "Unit",
-    "Selling Price (PHP)",
-    "Stock Qty",
-    "Reorder Level",
-    "Nearest Expiry",
-    "Prescription Required",
+    "Quantity",
+    "Lot Number",
+    "Exp Date",
+    "Cost (PHP)",
+    "Selling Price WS (PHP)",
+    "Selling Price Retail (PHP)",
   ];
 
   if (format === "json") {
-    return jsonDownloadResponse("inventory-list.json", products);
+    return jsonDownloadResponse("inventory-list.json", lines);
   }
   return excelCsvDownloadResponse(
     `inventory-list-${dateStamp()}.csv`,

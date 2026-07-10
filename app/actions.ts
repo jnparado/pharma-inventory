@@ -8,57 +8,49 @@ import { deductStockFefo } from "@/lib/pos";
 import { revalidateInventory } from "@/lib/revalidate";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-/** Find a category by name (case-insensitive), creating it if needed. */
-async function resolveCategoryId(
-  supabase: ReturnType<typeof createAdminClient>,
-  name: string
-): Promise<string | null> {
-  const trimmed = name.trim();
-  if (!trimmed) return null;
+import { insertProductEntry, updateProductEntry } from "@/lib/products-db";
 
-  const { data: existing } = await supabase
-    .from("categories")
-    .select("id")
-    .ilike("name", trimmed)
-    .maybeSingle();
-  if (existing) return existing.id;
+function parseProductEntry(formData: FormData) {
+  const product_name = String(formData.get("product_name") ?? "").trim();
+  const brand = String(formData.get("brand") ?? "").trim();
+  const lot_number = String(formData.get("lot_number") ?? "").trim();
+  const quantity = Number(formData.get("quantity"));
+  const cost = Number(formData.get("cost") ?? 0);
+  const selling_price_ws = Number(formData.get("selling_price_ws") ?? 0);
+  const selling_price_retail = Number(formData.get("selling_price_retail") ?? 0);
+  const expiry_date =
+    String(formData.get("expiry_date") ?? "").trim() || null;
+  const entry_date =
+    String(formData.get("entry_date") ?? "").trim() ||
+    new Date().toISOString().slice(0, 10);
 
-  const { data: created, error } = await supabase
-    .from("categories")
-    .insert({ name: trimmed })
-    .select("id")
-    .single();
-  if (error) throw new Error(error.message);
-  return created.id;
+  return {
+    entry_date,
+    product_name,
+    brand,
+    quantity,
+    lot_number,
+    expiry_date,
+    cost,
+    selling_price_ws,
+    selling_price_retail,
+  };
 }
 
 export async function createProduct(formData: FormData) {
   await requireAdmin("/products");
   const supabase = createAdminClient();
+  const input = parseProductEntry(formData);
 
-  let categoryId: string | null = null;
-  try {
-    categoryId = await resolveCategoryId(
-      supabase,
-      String(formData.get("category") ?? "")
-    );
-  } catch (e) {
-    redirect(`/products?error=${encodeURIComponent((e as Error).message)}`);
+  if (!input.product_name || !input.lot_number) {
+    redirect("/products?error=Product name and lot number are required");
+  }
+  if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
+    redirect("/products?error=Enter a valid quantity");
   }
 
-  const { error } = await supabase.from("products").insert({
-    product_name: String(formData.get("product_name") ?? "").trim(),
-    generic_name: String(formData.get("generic_name") ?? "").trim() || null,
-    brand_name: String(formData.get("brand_name") ?? "").trim() || null,
-    sku: String(formData.get("sku") ?? "").trim(),
-    barcode: String(formData.get("barcode") ?? "").trim() || null,
-    category_id: categoryId,
-    unit: String(formData.get("unit") ?? "pcs").trim() || "pcs",
-    selling_price: Number(formData.get("selling_price") ?? 0),
-    reorder_level: Number(formData.get("reorder_level") ?? 10),
-    requires_prescription: formData.get("requires_prescription") === "on",
-  });
-  if (error) redirect(`/products?error=${encodeURIComponent(error.message)}`);
+  const { error } = await insertProductEntry(supabase, input);
+  if (error) redirect(`/products?error=${encodeURIComponent(error)}`);
   revalidateInventory("products", "stock", "dashboard");
   redirect("/products?success=Product added");
 }
@@ -66,36 +58,27 @@ export async function createProduct(formData: FormData) {
 export async function updateProduct(formData: FormData) {
   await requireAdmin("/products");
   const supabase = createAdminClient();
-  const id = String(formData.get("id") ?? "");
-  if (!id) redirect("/products?error=Missing product id");
-
-  let categoryId: string | null = null;
-  try {
-    categoryId = await resolveCategoryId(
-      supabase,
-      String(formData.get("category") ?? "")
-    );
-  } catch (e) {
-    redirect(`/products?error=${encodeURIComponent((e as Error).message)}`);
+  const batchId = String(formData.get("batch_id") ?? "");
+  const productId = String(formData.get("product_id") ?? "");
+  if (!batchId || !productId) {
+    redirect("/products?error=Missing product entry id");
   }
 
-  const { error } = await supabase
-    .from("products")
-    .update({
-      product_name: String(formData.get("product_name") ?? "").trim(),
-      generic_name: String(formData.get("generic_name") ?? "").trim() || null,
-      brand_name: String(formData.get("brand_name") ?? "").trim() || null,
-      sku: String(formData.get("sku") ?? "").trim(),
-      barcode: String(formData.get("barcode") ?? "").trim() || null,
-      category_id: categoryId,
-      unit: String(formData.get("unit") ?? "pcs").trim() || "pcs",
-      selling_price: Number(formData.get("selling_price") ?? 0),
-      reorder_level: Number(formData.get("reorder_level") ?? 10),
-      requires_prescription: formData.get("requires_prescription") === "on",
-    })
-    .eq("id", id);
+  const input = parseProductEntry(formData);
+  if (!input.product_name || !input.lot_number) {
+    redirect("/products?error=Product name and lot number are required");
+  }
+  if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
+    redirect("/products?error=Enter a valid quantity");
+  }
 
-  if (error) redirect(`/products?error=${encodeURIComponent(error.message)}`);
+  const { error } = await updateProductEntry(
+    supabase,
+    batchId,
+    productId,
+    input
+  );
+  if (error) redirect(`/products?error=${encodeURIComponent(error)}`);
   revalidateInventory("products", "stock", "dashboard");
   redirect("/products?success=Product updated");
 }
@@ -103,13 +86,31 @@ export async function updateProduct(formData: FormData) {
 export async function deleteProduct(formData: FormData) {
   await requireAdmin("/products");
   const supabase = createAdminClient();
-  const { error } = await supabase
-    .from("products")
+  const batchId = String(formData.get("batch_id") ?? "");
+  const productId = String(formData.get("product_id") ?? "");
+  if (!batchId || !productId) {
+    redirect("/products?error=Missing product entry id");
+  }
+
+  const { error: batchError } = await supabase
+    .from("product_batches")
     .delete()
-    .eq("id", String(formData.get("id")));
-  if (error) redirect(`/products?error=${encodeURIComponent(error.message)}`);
+    .eq("id", batchId);
+  if (batchError) {
+    redirect(`/products?error=${encodeURIComponent(batchError.message)}`);
+  }
+
+  const { count } = await supabase
+    .from("product_batches")
+    .select("id", { count: "exact", head: true })
+    .eq("product_id", productId);
+
+  if ((count ?? 0) === 0) {
+    await supabase.from("products").delete().eq("id", productId);
+  }
+
   revalidateInventory("products", "stock", "dashboard");
-  redirect("/products?success=Product deleted");
+  redirect("/products?success=Product removed");
 }
 
 export async function createSupplier(formData: FormData) {

@@ -35,9 +35,24 @@ export type Product = {
   form: string | null;
   unit: string | null;
   selling_price: number;
+  selling_price_ws: number | null;
   reorder_level: number | null;
   requires_prescription: boolean | null;
   created_at: string | null;
+};
+
+export type ProductInventoryLine = {
+  batch_id: string;
+  product_id: string;
+  entry_date: string | null;
+  product_name: string;
+  brand: string | null;
+  quantity: number;
+  lot_number: string;
+  expiry_date: string | null;
+  cost: number | null;
+  selling_price_ws: number | null;
+  selling_price_retail: number;
 };
 
 export type ProductBatch = {
