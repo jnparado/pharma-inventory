@@ -45,48 +45,67 @@ export async function getCategories(): Promise<Category[]> {
 
 export const getProductsWithStock = cache(async (): Promise<ProductWithStock[]> => {
   const supabase = createAdminClient();
-  const [productsRes, batchesRes] = await Promise.all([
-    supabase
+  let productsRes = await supabase
+    .from("products")
+    .select("*, categories(name)")
+    .order("product_name");
+
+  if (productsRes.error) {
+    productsRes = await supabase
       .from("products")
-      .select("*, categories(name)")
-      .order("product_name"),
-    supabase
-      .from("product_batches")
-      .select("product_id, quantity_remaining, expiry_date"),
-  ]);
-  if (productsRes.error)
+      .select("*")
+      .order("product_name");
+  }
+  if (productsRes.error) {
     throw new Error(`Failed to load products: ${productsRes.error.message}`);
-  if (batchesRes.error)
-    throw new Error(`Failed to load batches: ${batchesRes.error.message}`);
+  }
+
+  const batchesRes = await supabase
+    .from("product_batches")
+    .select("product_id, quantity_remaining, expiry_date");
 
   const stockByProduct = new Map<
     string,
     { total: number; nearestExpiry: string | null }
   >();
-  for (const batch of batchesRes.data) {
-    if (!batch.product_id) continue;
-    const qty = batch.quantity_remaining ?? 0;
-    const entry = stockByProduct.get(batch.product_id) ?? {
-      total: 0,
-      nearestExpiry: null,
-    };
-    entry.total += qty;
-    if (
-      qty > 0 &&
-      batch.expiry_date &&
-      (entry.nearestExpiry === null || batch.expiry_date < entry.nearestExpiry)
-    ) {
-      entry.nearestExpiry = batch.expiry_date;
+
+  if (!batchesRes.error) {
+    for (const batch of batchesRes.data ?? []) {
+      if (!batch.product_id) continue;
+      const qty = batch.quantity_remaining ?? 0;
+      const entry = stockByProduct.get(batch.product_id) ?? {
+        total: 0,
+        nearestExpiry: null,
+      };
+      entry.total += qty;
+      if (
+        qty > 0 &&
+        batch.expiry_date &&
+        (entry.nearestExpiry === null || batch.expiry_date < entry.nearestExpiry)
+      ) {
+        entry.nearestExpiry = batch.expiry_date;
+      }
+      stockByProduct.set(batch.product_id, entry);
     }
-    stockByProduct.set(batch.product_id, entry);
   }
 
   return (productsRes.data as unknown as ProductWithStock[]).map((product) => {
-    const entry = stockByProduct.get(product.id);
+    const batchStock = stockByProduct.get(product.id);
+    const flatQty = Number(
+      (product as ProductWithStock & { quantity?: number }).quantity ?? 0
+    );
+    const entry = batchStock ?? {
+      total: flatQty,
+      nearestExpiry:
+        (product as ProductWithStock & { expiry_date?: string | null })
+          .expiry_date ??
+        (product as ProductWithStock & { exp_date?: string | null }).exp_date ??
+        null,
+    };
     return {
       ...product,
-      total_stock: entry?.total ?? 0,
-      nearest_expiry: entry?.nearestExpiry ?? null,
+      total_stock: entry.total,
+      nearest_expiry: entry.nearestExpiry,
     };
   });
 });

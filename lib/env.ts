@@ -25,16 +25,19 @@ export function getSupabaseServiceRoleKey(): string {
 export function isSupabaseConfigured(): boolean {
   const url = getSupabaseUrl();
   const anonKey = getSupabaseAnonKey();
-  const serviceKey = getSupabaseServiceRoleKey();
 
   return (
     url.startsWith("https://") &&
     !url.includes("your-project-ref") &&
     anonKey.length > 20 &&
-    !anonKey.startsWith("your-") &&
-    serviceKey.length > 20 &&
-    !serviceKey.startsWith("your-")
+    !anonKey.startsWith("your-")
   );
+}
+
+/** True when the service role key is available for server-side writes. */
+export function hasServiceRoleKey(): boolean {
+  const serviceKey = getSupabaseServiceRoleKey();
+  return serviceKey.length > 20 && !serviceKey.startsWith("your-");
 }
 
 export function isVercel(): boolean {

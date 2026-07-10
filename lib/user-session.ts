@@ -17,8 +17,12 @@ async function resolveAuthUser(): Promise<User | null> {
 
   if (isStaticAuthCookie(staticCookie)) {
     const email = getStaticLoginEmail();
-    const profile = await getUserByEmail(email);
-    return profile ?? staticAuthUserProfile();
+    try {
+      const profile = await getUserByEmail(email);
+      return profile ?? staticAuthUserProfile();
+    } catch {
+      return staticAuthUserProfile();
+    }
   }
 
   const supabase = await createClient();

@@ -123,14 +123,28 @@ async function getProductColumns(
     return cachedProductColumns;
   }
 
-  cachedProductColumns = new Set(REGISTER_COLUMN_CANDIDATES);
+  const discovered = new Set<string>(["product_name", "lot_number"]);
+  await Promise.all(
+    REGISTER_COLUMN_CANDIDATES.map(async (col) => {
+      const { error: probeError } = await supabase
+        .from("products")
+        .select(col)
+        .limit(0);
+      if (!probeError) discovered.add(col);
+    })
+  );
+  cachedProductColumns = discovered;
   return cachedProductColumns;
 }
 
 async function isFlatRegister(supabase: SupabaseClient): Promise<boolean> {
   if (cachedFlatRegister !== null) return cachedFlatRegister;
-  const cols = await getProductColumns(supabase);
-  cachedFlatRegister = cols.has("lot_number") && cols.has("quantity");
+
+  const [lotProbe, qtyProbe] = await Promise.all([
+    supabase.from("products").select("lot_number").limit(0),
+    supabase.from("products").select("quantity").limit(0),
+  ]);
+  cachedFlatRegister = !lotProbe.error && !qtyProbe.error;
   return cachedFlatRegister;
 }
 
@@ -281,18 +295,28 @@ async function fetchFromProductsOnly(
   supabase: SupabaseClient,
   productId?: string
 ): Promise<ProductInventoryLine[]> {
-  let query = supabase
-    .from("products")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const buildQuery = () => {
+    let query = supabase.from("products").select("*");
+    if (productId) query = query.eq("id", productId);
+    return query;
+  };
 
-  if (productId) {
-    query = query.eq("id", productId);
+  for (const orderCol of ["created_at", "id"] as const) {
+    const { data, error } = await buildQuery().order(orderCol, {
+      ascending: false,
+    });
+    if (!error) {
+      return (data ?? []).map((row) =>
+        mapProductRow(row as unknown as Record<string, unknown>)
+      );
+    }
+    if (!missingColumn(error.message, orderCol)) break;
   }
 
-  const { data, error } = await query;
+  const { data, error } = await buildQuery();
   if (error) {
-    throw new Error(`Failed to load products: ${error.message}`);
+    console.error("Failed to load products:", error.message);
+    return [];
   }
 
   return (data ?? []).map((row) =>

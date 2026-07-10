@@ -161,7 +161,7 @@ export function SetupNotice() {
       <div className="mt-3 rounded-lg bg-amber-100/60 px-4 py-3 font-mono text-xs text-amber-900">
         <p>NEXT_PUBLIC_SUPABASE_URL</p>
         <p>NEXT_PUBLIC_SUPABASE_ANON_KEY</p>
-        <p>SUPABASE_SERVICE_ROLE_KEY</p>
+        <p>SUPABASE_SERVICE_ROLE_KEY (required for add/edit/delete)</p>
       </div>
       <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-amber-800">
         {onVercel ? (

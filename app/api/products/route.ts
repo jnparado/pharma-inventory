@@ -10,6 +10,7 @@ import {
   validateProductEntry,
 } from "@/lib/products-db";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hasServiceRoleKey } from "@/lib/env";
 import { getActiveUser } from "@/lib/user-session";
 
 async function requireAdminApi() {
@@ -25,6 +26,16 @@ export async function POST(request: Request) {
   if (denied) return denied;
 
   try {
+    if (!hasServiceRoleKey()) {
+      return NextResponse.json(
+        {
+          error:
+            "SUPABASE_SERVICE_ROLE_KEY is missing on Vercel. Add it under Project Settings → Environment Variables, then redeploy.",
+        },
+        { status: 503 }
+      );
+    }
+
     const body = (await request.json()) as Record<string, unknown>;
     const input = parseProductEntryBody(body);
     const validationError = validateProductEntry(input);
@@ -60,6 +71,16 @@ export async function PUT(request: Request) {
   if (denied) return denied;
 
   try {
+    if (!hasServiceRoleKey()) {
+      return NextResponse.json(
+        {
+          error:
+            "SUPABASE_SERVICE_ROLE_KEY is missing on Vercel. Add it under Project Settings → Environment Variables, then redeploy.",
+        },
+        { status: 503 }
+      );
+    }
+
     const body = (await request.json()) as Record<string, unknown>;
     const batchId = String(body.batch_id ?? "");
     const productId = String(body.product_id ?? "");
@@ -107,6 +128,16 @@ export async function DELETE(request: Request) {
   if (denied) return denied;
 
   try {
+    if (!hasServiceRoleKey()) {
+      return NextResponse.json(
+        {
+          error:
+            "SUPABASE_SERVICE_ROLE_KEY is missing on Vercel. Add it under Project Settings → Environment Variables, then redeploy.",
+        },
+        { status: 503 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const batchId = String(searchParams.get("batch_id") ?? "");
     const productId = String(searchParams.get("product_id") ?? "");

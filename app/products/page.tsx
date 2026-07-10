@@ -5,6 +5,7 @@ import {
   getProductInventoryLines,
   isSupabaseConfigured,
 } from "@/lib/data";
+import { hasServiceRoleKey } from "@/lib/env";
 import { canManageRecords } from "@/lib/permissions";
 import { getActiveUser } from "@/lib/user-session";
 import {
@@ -32,11 +33,24 @@ export default async function ProductsPage({
     );
   }
 
-  const [lines, activeUser, editing] = await Promise.all([
-    getProductInventoryLines(),
-    getActiveUser(),
-    edit ? getProductInventoryLineByBatchId(edit) : Promise.resolve(null),
-  ]);
+  let lines: Awaited<ReturnType<typeof getProductInventoryLines>> = [];
+  let activeUser: Awaited<ReturnType<typeof getActiveUser>> = null;
+  let editing: Awaited<ReturnType<typeof getProductInventoryLineByBatchId>> =
+    null;
+  let loadError = error ?? "";
+
+  try {
+    [lines, activeUser, editing] = await Promise.all([
+      getProductInventoryLines(),
+      getActiveUser(),
+      edit ? getProductInventoryLineByBatchId(edit) : Promise.resolve(null),
+    ]);
+  } catch (e) {
+    loadError =
+      loadError ||
+      (e as Error).message ||
+      "Could not load products. Check Supabase env vars and redeploy.";
+  }
 
   const isAdmin = canManageRecords(activeUser);
 
@@ -46,7 +60,14 @@ export default async function ProductsPage({
         title="Product"
         description="Inventory register — date, product, brand, quantity, lot, expiry, cost, and wholesale/retail prices."
       />
-      <FlashMessage success={success} error={error} />
+      <FlashMessage success={success} error={loadError || undefined} />
+
+      {isSupabaseConfigured() && !hasServiceRoleKey() && (
+        <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Add <code className="rounded bg-amber-100 px-1">SUPABASE_SERVICE_ROLE_KEY</code>{" "}
+          in Vercel environment variables to enable add, edit, and delete.
+        </p>
+      )}
 
       {!isAdmin && (
         <p className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
