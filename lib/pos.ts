@@ -52,6 +52,7 @@ export async function deductStockFefo(
   }
 
   const allocations: FefoAllocation[] = [];
+  const batchUpdates: { id: string; quantity_remaining: number }[] = [];
   let remaining = quantity;
 
   for (const batch of batches ?? []) {
@@ -61,24 +62,38 @@ export async function deductStockFefo(
     if (take <= 0) continue;
     remaining -= take;
 
-    const { error: updateError } = await supabase
-      .from("product_batches")
-      .update({ quantity_remaining: inBatch - take })
-      .eq("id", batch.id);
-    if (updateError) throw new Error(updateError.message);
+    batchUpdates.push({
+      id: batch.id,
+      quantity_remaining: inBatch - take,
+    });
+    allocations.push({ batch_id: batch.id, quantity: take });
+  }
 
+  await Promise.all(
+    batchUpdates.map(({ id, quantity_remaining }) =>
+      supabase
+        .from("product_batches")
+        .update({ quantity_remaining })
+        .eq("id", id)
+        .then(({ error: updateError }) => {
+          if (updateError) throw new Error(updateError.message);
+        })
+    )
+  );
+
+  if (allocations.length > 0) {
     const { error: txError } = await supabase
       .from("inventory_transactions")
-      .insert({
-        product_id: productId,
-        batch_id: batch.id,
-        transaction_type: "stock_out",
-        quantity: take,
-        reference_no: referenceNo,
-      });
+      .insert(
+        allocations.map(({ batch_id, quantity: take }) => ({
+          product_id: productId,
+          batch_id,
+          transaction_type: "stock_out",
+          quantity: take,
+          reference_no: referenceNo,
+        }))
+      );
     if (txError) throw new Error(txError.message);
-
-    allocations.push({ batch_id: batch.id, quantity: take });
   }
 
   return allocations;

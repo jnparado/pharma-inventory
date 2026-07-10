@@ -1,10 +1,7 @@
 import Link from "next/link";
 import { DownloadPanel } from "@/components/download-panel";
-import {
-  getSales,
-  getSalesReportSummary,
-  isSupabaseConfigured,
-} from "@/lib/data";
+import { isSupabaseConfigured } from "@/lib/data";
+import { getSalesMetrics } from "@/lib/sales-metrics";
 import { displayReceiptNumber } from "@/lib/receipt";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import {
@@ -28,10 +25,8 @@ export default async function ReportsPage() {
     );
   }
 
-  const [summary, sales] = await Promise.all([
-    getSalesReportSummary(),
-    getSales(50),
-  ]);
+  const { summary, sales: allSales } = await getSalesMetrics();
+  const sales = allSales.slice(0, 50);
 
   return (
     <>

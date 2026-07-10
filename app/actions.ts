@@ -1,35 +1,12 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-guard";
 import { insertCustomer, updateCustomerRow } from "@/lib/customers-db";
 import { convertPurchaseOrderToSalesInvoice } from "@/lib/purchase-order-invoice";
+import { deductStockFefo } from "@/lib/pos";
+import { revalidateInventory } from "@/lib/revalidate";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-function revalidateAll() {
-  for (const path of [
-    "/",
-    "/products",
-    "/suppliers",
-    "/customers",
-    "/users",
-    "/settings",
-    "/profile",
-    "/stock",
-    "/expiry",
-    "/forecast",
-    "/scan",
-    "/branches",
-    "/orders",
-    "/prescriptions",
-    "/assistant",
-    "/pos",
-    "/reports",
-  ]) {
-    revalidatePath(path);
-  }
-}
 
 /** Find a category by name (case-insensitive), creating it if needed. */
 async function resolveCategoryId(
@@ -82,7 +59,7 @@ export async function createProduct(formData: FormData) {
     requires_prescription: formData.get("requires_prescription") === "on",
   });
   if (error) redirect(`/products?error=${encodeURIComponent(error.message)}`);
-  revalidateAll();
+  revalidateInventory("products", "stock", "dashboard");
   redirect("/products?success=Product added");
 }
 
@@ -119,7 +96,7 @@ export async function updateProduct(formData: FormData) {
     .eq("id", id);
 
   if (error) redirect(`/products?error=${encodeURIComponent(error.message)}`);
-  revalidateAll();
+  revalidateInventory("products", "stock", "dashboard");
   redirect("/products?success=Product updated");
 }
 
@@ -131,7 +108,7 @@ export async function deleteProduct(formData: FormData) {
     .delete()
     .eq("id", String(formData.get("id")));
   if (error) redirect(`/products?error=${encodeURIComponent(error.message)}`);
-  revalidateAll();
+  revalidateInventory("products", "stock", "dashboard");
   redirect("/products?success=Product deleted");
 }
 
@@ -146,7 +123,7 @@ export async function createSupplier(formData: FormData) {
     address: String(formData.get("address") ?? "").trim() || null,
   });
   if (error) redirect(`/suppliers?error=${encodeURIComponent(error.message)}`);
-  revalidateAll();
+  revalidateInventory("suppliers");
   redirect("/suppliers?success=Supplier added");
 }
 
@@ -169,7 +146,7 @@ export async function updateSupplier(formData: FormData) {
     .eq("id", id);
 
   if (error) redirect(`/suppliers?error=${encodeURIComponent(error.message)}`);
-  revalidateAll();
+  revalidateInventory("suppliers");
   redirect("/suppliers?success=Supplier updated");
 }
 
@@ -181,7 +158,7 @@ export async function deleteSupplier(formData: FormData) {
     .delete()
     .eq("id", String(formData.get("id")));
   if (error) redirect(`/suppliers?error=${encodeURIComponent(error.message)}`);
-  revalidateAll();
+  revalidateInventory("suppliers");
   redirect("/suppliers?success=Supplier deleted");
 }
 
@@ -199,7 +176,7 @@ export async function createCustomer(formData: FormData) {
   });
 
   if (error) redirect(`/customers?error=${encodeURIComponent(error)}`);
-  revalidateAll();
+  revalidateInventory("customers", "dashboard");
   redirect("/customers?success=Customer added");
 }
 
@@ -219,7 +196,7 @@ export async function updateCustomer(formData: FormData) {
   });
 
   if (error) redirect(`/customers?error=${encodeURIComponent(error)}`);
-  revalidateAll();
+  revalidateInventory("customers", "dashboard");
   redirect("/customers?success=Customer updated");
 }
 
@@ -231,7 +208,7 @@ export async function deleteCustomer(formData: FormData) {
     .delete()
     .eq("id", String(formData.get("id")));
   if (error) redirect(`/customers?error=${encodeURIComponent(error.message)}`);
-  revalidateAll();
+  revalidateInventory("customers", "dashboard");
   redirect("/customers?success=Customer removed");
 }
 
@@ -273,7 +250,7 @@ export async function stockIn(formData: FormData) {
     });
   if (txError) redirect(`/stock?error=${encodeURIComponent(txError.message)}`);
 
-  revalidateAll();
+  revalidateInventory("stock");
   redirect("/stock?success=Stock received");
 }
 
@@ -287,67 +264,19 @@ export async function stockOut(formData: FormData) {
   const productId = String(formData.get("product_id"));
   const requested = Number(formData.get("quantity"));
   const referenceNo =
-    String(formData.get("reference_no") ?? "").trim() || null;
+    String(formData.get("reference_no") ?? "").trim() || "stock-out";
 
   if (!productId || !Number.isInteger(requested) || requested <= 0) {
     redirect("/stock?error=Enter a valid product and quantity");
   }
 
-  const today = new Date().toISOString().slice(0, 10);
-  const { data: batches, error: batchError } = await supabase
-    .from("product_batches")
-    .select("id, quantity_remaining, expiry_date")
-    .eq("product_id", productId)
-    .gt("quantity_remaining", 0)
-    .or(`expiry_date.gte.${today},expiry_date.is.null`)
-    .order("expiry_date", { ascending: true, nullsFirst: false });
-  if (batchError) {
-    redirect(`/stock?error=${encodeURIComponent(batchError.message)}`);
+  try {
+    await deductStockFefo(supabase, productId, requested, referenceNo);
+  } catch (e) {
+    redirect(`/stock?error=${encodeURIComponent((e as Error).message)}`);
   }
 
-  const available = batches.reduce(
-    (sum, b) => sum + (b.quantity_remaining ?? 0),
-    0
-  );
-  if (available < requested) {
-    redirect(
-      `/stock?error=${encodeURIComponent(
-        `Insufficient non-expired stock: only ${available} available`
-      )}`
-    );
-  }
-
-  let remaining = requested;
-  for (const batch of batches) {
-    if (remaining <= 0) break;
-    const inBatch = batch.quantity_remaining ?? 0;
-    const take = Math.min(inBatch, remaining);
-    if (take <= 0) continue;
-    remaining -= take;
-
-    const { error: updateError } = await supabase
-      .from("product_batches")
-      .update({ quantity_remaining: inBatch - take })
-      .eq("id", batch.id);
-    if (updateError) {
-      redirect(`/stock?error=${encodeURIComponent(updateError.message)}`);
-    }
-
-    const { error: txError } = await supabase
-      .from("inventory_transactions")
-      .insert({
-        product_id: productId,
-        batch_id: batch.id,
-        transaction_type: "stock_out",
-        quantity: take,
-        reference_no: referenceNo,
-      });
-    if (txError) {
-      redirect(`/stock?error=${encodeURIComponent(txError.message)}`);
-    }
-  }
-
-  revalidateAll();
+  revalidateInventory("stock");
   redirect("/stock?success=Stock dispensed (FEFO)");
 }
 
@@ -359,7 +288,7 @@ export async function createBranch(formData: FormData) {
     phone: String(formData.get("phone") ?? "").trim() || null,
   });
   if (error) redirect(`/branches?error=${encodeURIComponent(error.message)}`);
-  revalidateAll();
+  revalidateInventory("branches");
   redirect("/branches?success=Branch added");
 }
 
@@ -376,7 +305,7 @@ export async function createStockTransfer(formData: FormData) {
     status: "pending",
   });
   if (error) redirect(`/branches?error=${encodeURIComponent(error.message)}`);
-  revalidateAll();
+  revalidateInventory("branches");
   redirect("/branches?success=Transfer request created");
 }
 
@@ -387,7 +316,7 @@ export async function updateTransferStatus(formData: FormData) {
     .update({ status: String(formData.get("status")) })
     .eq("id", String(formData.get("id")));
   if (error) redirect(`/branches?error=${encodeURIComponent(error.message)}`);
-  revalidateAll();
+  revalidateInventory("branches");
   redirect("/branches?success=Transfer updated");
 }
 
@@ -458,7 +387,7 @@ export async function generatePurchaseOrders() {
   if (itemsError)
     redirect(`/orders?error=${encodeURIComponent(itemsError.message)}`);
 
-  revalidateAll();
+  revalidateInventory("orders");
   redirect(`/orders?success=Auto PO ${poNumber} created (${items.length} items)`);
 }
 
@@ -484,7 +413,7 @@ export async function updateOrderStatus(formData: FormData) {
     if (!result.ok) {
       redirect(`/orders?error=${encodeURIComponent(result.error)}`);
     }
-    revalidateAll();
+    revalidateInventory("orders", "sales", "stock");
     const message = result.alreadyExists
       ? `Receipt ${result.receiptNumber} issued (Invoice ${result.invoiceNumber})`
       : `Invoice ${result.invoiceNumber} converted to Receipt ${result.receiptNumber}`;
@@ -498,7 +427,7 @@ export async function updateOrderStatus(formData: FormData) {
     .update({ status })
     .eq("id", id);
   if (error) redirect(`/orders?error=${encodeURIComponent(error.message)}`);
-  revalidateAll();
+  revalidateInventory("orders");
   redirect("/orders?success=Order status updated");
 }
 
@@ -517,7 +446,7 @@ export async function processPrescription(formData: FormData) {
   if (error)
     redirect(`/prescriptions?error=${encodeURIComponent(error.message)}`);
 
-  revalidateAll();
+  revalidateInventory("prescriptions");
   redirect(
     `/prescriptions?success=Prescription saved&text=${encodeURIComponent(text)}`
   );
@@ -529,21 +458,13 @@ export async function quickScanStockOut(formData: FormData) {
   if (!code) redirect("/scan?error=No barcode scanned");
 
   const supabase = createAdminClient();
-  const { data: product } = await supabase
+  const { data: matches } = await supabase
     .from("products")
     .select("id")
-    .eq("sku", code)
-    .maybeSingle();
+    .or(`sku.eq.${code},barcode.eq.${code}`)
+    .limit(1);
 
-  let productId = product?.id;
-  if (!productId) {
-    const { data: byBarcode } = await supabase
-      .from("products")
-      .select("id")
-      .eq("barcode", code)
-      .maybeSingle();
-    productId = byBarcode?.id;
-  }
+  const productId = matches?.[0]?.id;
 
   if (!productId) redirect(`/scan?error=Product not found for ${code}`);
 

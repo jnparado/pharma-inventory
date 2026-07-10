@@ -1,6 +1,9 @@
+import { cache } from "react";
 import { normalizeCustomer } from "@/lib/customers-db";
 import { isSupabaseConfigured } from "@/lib/env";
+import { getSalesMetrics } from "@/lib/sales-metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { expiryStatus } from "@/lib/utils";
 import type {
   BatchWithProduct,
   Category,
@@ -38,7 +41,7 @@ export async function getCategories(): Promise<Category[]> {
   return data;
 }
 
-export async function getProductsWithStock(): Promise<ProductWithStock[]> {
+export const getProductsWithStock = cache(async (): Promise<ProductWithStock[]> => {
   const supabase = createAdminClient();
   const [productsRes, batchesRes] = await Promise.all([
     supabase
@@ -84,7 +87,7 @@ export async function getProductsWithStock(): Promise<ProductWithStock[]> {
       nearest_expiry: entry?.nearestExpiry ?? null,
     };
   });
-}
+});
 
 export async function getSuppliers(): Promise<Supplier[]> {
   const supabase = createAdminClient();
@@ -149,7 +152,7 @@ export async function getCustomerById(id: string): Promise<Customer | null> {
   return data ? normalizeCustomer(data as Record<string, unknown>) : null;
 }
 
-export async function getUserById(id: string): Promise<User | null> {
+export const getUserById = cache(async (id: string): Promise<User | null> => {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("users")
@@ -158,9 +161,9 @@ export async function getUserById(id: string): Promise<User | null> {
     .maybeSingle();
   if (error) throw new Error(`Failed to load user: ${error.message}`);
   return data;
-}
+});
 
-export async function getUserByEmail(email: string): Promise<User | null> {
+export const getUserByEmail = cache(async (email: string): Promise<User | null> => {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("users")
@@ -169,6 +172,27 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     .maybeSingle();
   if (error) throw new Error(`Failed to load user: ${error.message}`);
   return data;
+});
+
+export async function getExpiringBatches(
+  limit: number
+): Promise<BatchWithProduct[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("product_batches")
+    .select(
+      "*, products(product_name, sku, unit, selling_price), suppliers(company_name)"
+    )
+    .gt("quantity_remaining", 0)
+    .not("expiry_date", "is", null)
+    .order("expiry_date", { ascending: true })
+    .limit(Math.max(limit * 4, 24));
+
+  if (error) throw new Error(`Failed to load expiring batches: ${error.message}`);
+
+  return (data as unknown as BatchWithProduct[])
+    .filter((b) => b.expiry_date && expiryStatus(b.expiry_date) !== "ok")
+    .slice(0, limit);
 }
 
 export async function getBatches(): Promise<BatchWithProduct[]> {
@@ -201,19 +225,14 @@ export async function getProductByCode(code: string) {
   const trimmed = code.trim();
   const select = "*, categories(name)";
 
-  const { data: bySku } = await supabase
+  const { data, error } = await supabase
     .from("products")
     .select(select)
-    .eq("sku", trimmed)
-    .maybeSingle();
-  if (bySku) return bySku;
+    .or(`sku.eq.${trimmed},barcode.eq.${trimmed}`)
+    .limit(1);
 
-  const { data: byBarcode } = await supabase
-    .from("products")
-    .select(select)
-    .eq("barcode", trimmed)
-    .maybeSingle();
-  return byBarcode;
+  if (error) throw new Error(`Failed to load product: ${error.message}`);
+  return data?.[0] ?? null;
 }
 
 export async function getBranches() {
@@ -276,8 +295,10 @@ export async function getBranchStockSummary() {
     getBranches(),
     supabase
       .from("inventory_transactions")
-      .select("branch_id, product_id, transaction_type, quantity"),
-    supabase.from("products").select("id, product_name, sku").limit(100),
+      .select("branch_id, product_id, transaction_type, quantity")
+      .order("created_at", { ascending: false })
+      .limit(10000),
+    supabase.from("products").select("id, product_name, sku"),
   ]);
 
   const stockByBranch = new Map<string, Map<string, number>>();
@@ -344,73 +365,8 @@ export async function getSaleByInvoice(
 }
 
 export async function getSalesReportSummary(): Promise<SalesReportSummary> {
-  const sales = await getSales(500);
-  const now = new Date();
-  const startOfDay = new Date(now);
-  startOfDay.setHours(0, 0, 0, 0);
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - 7);
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  let todayTotal = 0,
-    todayCount = 0,
-    weekTotal = 0,
-    weekCount = 0,
-    monthTotal = 0,
-    monthCount = 0,
-    allTimeTotal = 0;
-
-  const productStats = new Map<
-    string,
-    { product_name: string; sku: string; qty_sold: number; revenue: number }
-  >();
-
-  for (const sale of sales) {
-    const amount = Number(sale.total_amount) || 0;
-    const created = sale.created_at ? new Date(sale.created_at) : null;
-    allTimeTotal += amount;
-
-    if (created && created >= startOfDay) {
-      todayTotal += amount;
-      todayCount++;
-    }
-    if (created && created >= startOfWeek) {
-      weekTotal += amount;
-      weekCount++;
-    }
-    if (created && created >= startOfMonth) {
-      monthTotal += amount;
-      monthCount++;
-    }
-
-    for (const item of sale.sale_items ?? []) {
-      const key = item.product_id ?? item.id;
-      const existing = productStats.get(key) ?? {
-        product_name: item.products?.product_name ?? "Unknown",
-        sku: item.products?.sku ?? "—",
-        qty_sold: 0,
-        revenue: 0,
-      };
-      existing.qty_sold += item.quantity;
-      existing.revenue += Number(item.subtotal) || item.quantity * item.unit_price;
-      productStats.set(key, existing);
-    }
-  }
-
-  const top_products = [...productStats.values()]
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 10);
-
-  return {
-    today_total: todayTotal,
-    today_count: todayCount,
-    week_total: weekTotal,
-    week_count: weekCount,
-    month_total: monthTotal,
-    month_count: monthCount,
-    all_time_total: allTimeTotal,
-    top_products,
-  };
+  const { summary } = await getSalesMetrics();
+  return summary;
 }
 
 export async function getUsers(): Promise<User[]> {

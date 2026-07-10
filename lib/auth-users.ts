@@ -1,4 +1,4 @@
-import { getUserByEmail, getUserById } from "@/lib/data";
+import { getUserByEmail, getUserById, getUsers } from "@/lib/data";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { User } from "@/lib/types";
 
@@ -13,13 +13,22 @@ export type AuthLoginOption = {
 /** List Supabase Auth users for the login account picker. */
 export async function listAuthUsersForLogin(): Promise<AuthLoginOption[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
-  });
+  const [{ data, error }, profiles] = await Promise.all([
+    supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+    getUsers(),
+  ]);
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  const byId = new Map<string, User>();
+  const byEmail = new Map<string, User>();
+  for (const profile of profiles) {
+    byId.set(profile.id, profile);
+    if (profile.email) {
+      byEmail.set(profile.email.toLowerCase(), profile);
+    }
   }
 
   const options: AuthLoginOption[] = [];
@@ -28,8 +37,7 @@ export async function listAuthUsersForLogin(): Promise<AuthLoginOption[]> {
     if (!authUser.email) continue;
 
     const profile =
-      (await getUserById(authUser.id)) ??
-      (await getUserByEmail(authUser.email));
+      byId.get(authUser.id) ?? byEmail.get(authUser.email.toLowerCase());
 
     const meta = authUser.user_metadata ?? {};
     options.push({

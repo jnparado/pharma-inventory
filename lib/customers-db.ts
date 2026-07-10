@@ -31,33 +31,55 @@ export function normalizeCustomer(row: Record<string, unknown>): Customer {
   };
 }
 
-function insertVariants(input: CustomerInput): Record<string, string | null>[] {
+type RowShape = "full" | "no_address" | "name_full" | "name_only";
+
+let cachedInsertShape: RowShape | null = null;
+let cachedUpdateShape: RowShape | null = null;
+
+function rowForShape(shape: RowShape, input: CustomerInput) {
   const { full_name, email, phone, address } = input;
-  return [
-    { full_name, email, phone, address },
-    { full_name, email, phone },
-    { name: full_name, email, phone, address },
-    { name: full_name, email, phone },
-    { full_name, phone },
-    { name: full_name, phone },
-  ];
+  switch (shape) {
+    case "full":
+      return { full_name, email, phone, address };
+    case "no_address":
+      return { full_name, email, phone };
+    case "name_full":
+      return { name: full_name, email, phone, address };
+    case "name_only":
+      return { name: full_name, phone };
+  }
 }
 
-function updateVariants(input: CustomerInput): Record<string, string | null>[] {
-  return insertVariants(input);
-}
+const SHAPES: RowShape[] = ["full", "no_address", "name_full", "name_only"];
 
-export async function insertCustomer(
+async function tryWrite(
   supabase: SupabaseClient,
-  input: CustomerInput
-): Promise<{ error: string | null }> {
-  let lastError = "Could not save customer";
+  mode: "insert" | "update",
+  input: CustomerInput,
+  id?: string
+): Promise<{ error: string | null; shape?: RowShape }> {
+  const cached = mode === "insert" ? cachedInsertShape : cachedUpdateShape;
+  const order = cached
+    ? [cached, ...SHAPES.filter((shape) => shape !== cached)]
+    : SHAPES;
 
-  for (const row of insertVariants(input)) {
-    const { error } = await supabase.from("customers").insert(row);
-    if (!error) return { error: null };
+  let lastError = mode === "insert" ? "Could not save customer" : "Could not update customer";
+
+  for (const shape of order) {
+    const row = rowForShape(shape, input);
+    const payload = row as unknown as Record<string, string | null>;
+    const { error } =
+      mode === "insert"
+        ? await supabase.from("customers").insert(payload)
+        : await supabase.from("customers").update(payload).eq("id", id!);
+
+    if (!error) {
+      if (mode === "insert") cachedInsertShape = shape;
+      else cachedUpdateShape = shape;
+      return { error: null, shape };
+    }
+
     lastError = error.message;
-
     const isSchemaError = Object.keys(row).some((key) =>
       missingColumn(error.message, key)
     );
@@ -65,6 +87,14 @@ export async function insertCustomer(
   }
 
   return { error: lastError };
+}
+
+export async function insertCustomer(
+  supabase: SupabaseClient,
+  input: CustomerInput
+): Promise<{ error: string | null }> {
+  const result = await tryWrite(supabase, "insert", input);
+  return { error: result.error };
 }
 
 export async function updateCustomerRow(
@@ -72,20 +102,8 @@ export async function updateCustomerRow(
   id: string,
   input: CustomerInput
 ): Promise<{ error: string | null }> {
-  let lastError = "Could not update customer";
-
-  for (const row of updateVariants(input)) {
-    const { error } = await supabase.from("customers").update(row).eq("id", id);
-    if (!error) return { error: null };
-    lastError = error.message;
-
-    const isSchemaError = Object.keys(row).some((key) =>
-      missingColumn(error.message, key)
-    );
-    if (!isSchemaError) return { error: error.message };
-  }
-
-  return { error: lastError };
+  const result = await tryWrite(supabase, "update", input, id);
+  return { error: result.error };
 }
 
 export const CUSTOMERS_TABLE_SQL = `-- Run in Supabase SQL Editor (Settings → SQL)

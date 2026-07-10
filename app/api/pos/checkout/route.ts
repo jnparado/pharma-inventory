@@ -45,26 +45,33 @@ export async function POST(req: Request) {
 
     if (saleError) throw new Error(saleError.message);
 
-    for (const item of body.items) {
-      const allocations = await deductStockFefo(
-        supabase,
-        item.product_id,
-        item.quantity,
-        invoiceNumber
-      );
+    const allocationsByItem = await Promise.all(
+      body.items.map((item) =>
+        deductStockFefo(
+          supabase,
+          item.product_id,
+          item.quantity,
+          invoiceNumber
+        ).then((allocations) => ({ item, allocations }))
+      )
+    );
 
-      for (const alloc of allocations) {
-        const lineTotal = alloc.quantity * item.unit_price;
-        const { error: itemError } = await supabase.from("sale_items").insert({
-          sale_id: sale.id,
-          product_id: item.product_id,
-          batch_id: alloc.batch_id,
-          quantity: alloc.quantity,
-          unit_price: item.unit_price,
-          subtotal: lineTotal,
-        });
-        if (itemError) throw new Error(itemError.message);
-      }
+    const saleItems = allocationsByItem.flatMap(({ item, allocations }) =>
+      allocations.map((alloc) => ({
+        sale_id: sale.id,
+        product_id: item.product_id,
+        batch_id: alloc.batch_id,
+        quantity: alloc.quantity,
+        unit_price: item.unit_price,
+        subtotal: alloc.quantity * item.unit_price,
+      }))
+    );
+
+    if (saleItems.length > 0) {
+      const { error: itemError } = await supabase
+        .from("sale_items")
+        .insert(saleItems);
+      if (itemError) throw new Error(itemError.message);
     }
 
     const paid = body.amount_paid ?? total;

@@ -23,6 +23,23 @@ export async function middleware(request: NextRequest) {
 
   const staticSession = request.cookies.get(STATIC_AUTH_COOKIE)?.value;
   const hasStaticAuth = isStaticAuthCookie(staticSession);
+  const { pathname } = request.nextUrl;
+  const isLogin = pathname === "/login";
+  const isAuthCallback = pathname.startsWith("/auth/");
+  const isLoginApi = pathname === "/api/auth/login";
+
+  if (hasStaticAuth) {
+    if (!isLogin && !isAuthCallback && !isLoginApi) {
+      return NextResponse.next();
+    }
+    if (isLogin) {
+      const url = request.nextUrl.clone();
+      url.pathname = request.nextUrl.searchParams.get("next") || "/";
+      url.searchParams.delete("next");
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.next();
+  }
 
   let response = NextResponse.next({ request });
 
@@ -51,11 +68,7 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthenticated = !!user || hasStaticAuth;
-  const { pathname } = request.nextUrl;
-  const isLogin = pathname === "/login";
-  const isAuthCallback = pathname.startsWith("/auth/");
-  const isLoginApi = pathname === "/api/auth/login";
+  const isAuthenticated = !!user;
 
   if (!isAuthenticated && !isLogin && !isAuthCallback && !isLoginApi) {
     const url = request.nextUrl.clone();

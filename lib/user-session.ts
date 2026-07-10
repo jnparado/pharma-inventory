@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { ensureUserProfileFromAuth } from "@/lib/auth-users";
 import { getUserByEmail, getUserById } from "@/lib/data";
@@ -10,8 +11,7 @@ import {
 import type { User } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
 
-/** Current staff profile for static or Supabase Auth session. */
-export async function getActiveUser(): Promise<User | null> {
+async function resolveAuthUser(): Promise<User | null> {
   const cookieStore = await cookies();
   const staticCookie = cookieStore.get(STATIC_AUTH_COOKIE)?.value;
 
@@ -41,31 +41,15 @@ export async function getActiveUser(): Promise<User | null> {
   return ensureUserProfileFromAuth(authUser);
 }
 
-export async function getAuthEmail(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const staticCookie = cookieStore.get(STATIC_AUTH_COOKIE)?.value;
-  if (isStaticAuthCookie(staticCookie)) {
-    return getStaticLoginEmail();
-  }
+/** Current staff profile for static or Supabase Auth session (deduped per request). */
+export const getActiveUser = cache(resolveAuthUser);
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export async function getAuthEmail(): Promise<string | null> {
+  const user = await getActiveUser();
   return user?.email ?? null;
 }
 
 export async function getAuthUserId(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const staticCookie = cookieStore.get(STATIC_AUTH_COOKIE)?.value;
-  if (isStaticAuthCookie(staticCookie)) {
-    const profile = await getActiveUser();
-    return profile?.id ?? "static-admin";
-  }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getActiveUser();
   return user?.id ?? null;
 }

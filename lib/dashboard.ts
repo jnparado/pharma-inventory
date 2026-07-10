@@ -1,12 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  getBatches,
+  getExpiringBatches,
   getProductsWithStock,
   getPurchaseOrders,
-  getSales,
-  getSalesReportSummary,
 } from "@/lib/data";
-import { expiryStatus, formatCurrency } from "@/lib/utils";
+import { getSalesMetrics } from "@/lib/sales-metrics";
+import { formatCurrency } from "@/lib/utils";
 import type { BatchWithProduct, PurchaseOrder } from "@/lib/types";
 
 const MONTHS = [
@@ -26,28 +25,19 @@ const MONTHS = [
 
 export async function getDashboardData() {
   const supabase = createAdminClient();
-  const [products, batches, sales, orders, summary, customersRes] =
+  const [products, metrics, orders, expiringList, customersRes] =
     await Promise.all([
       getProductsWithStock(),
-      getBatches(),
-      getSales(200),
+      getSalesMetrics(),
       getPurchaseOrders(),
-      getSalesReportSummary(),
+      getExpiringBatches(6),
       supabase.from("customers").select("id", { count: "exact", head: true }),
     ]);
 
+  const sales = metrics.sales;
+  const summary = metrics.summary;
   const outOfStock = products.filter((p) => p.total_stock === 0).length;
   const customerCount = customersRes.count ?? 0;
-
-  const expiringList = batches
-    .filter(
-      (b) =>
-        (b.quantity_remaining ?? 0) > 0 &&
-        b.expiry_date &&
-        expiryStatus(b.expiry_date) !== "ok"
-    )
-    .sort((a, b) => (a.expiry_date! > b.expiry_date! ? 1 : -1))
-    .slice(0, 6);
 
   const maxExpiringQty = Math.max(
     ...expiringList.map((b) => b.quantity_remaining ?? 0),

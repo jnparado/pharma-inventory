@@ -12,11 +12,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveUser } from "@/lib/user-session";
 
-function revalidateUserPaths() {
-  revalidatePath("/", "layout");
-  for (const path of ["/profile", "/settings", "/users", "/login"]) {
+function revalidateUserPaths(path?: string) {
+  if (path) {
     revalidatePath(path);
+    return;
   }
+  revalidatePath("/profile");
+  revalidatePath("/settings");
+  revalidatePath("/users");
 }
 
 export async function signOut() {
@@ -25,7 +28,6 @@ export async function signOut() {
 
   const supabase = await createClient();
   await supabase.auth.signOut();
-  revalidateUserPaths();
   redirect("/login");
 }
 
@@ -59,7 +61,8 @@ export async function updateUserProfile(formData: FormData) {
     redirect(`/profile?error=${encodeURIComponent(error.message)}`);
   }
 
-  revalidateUserPaths();
+  revalidatePath("/profile");
+  revalidatePath("/", "layout");
   redirect("/profile?success=Profile updated successfully");
 }
 
@@ -81,7 +84,7 @@ export async function linkAuthUser(formData: FormData) {
     redirect("/users?error=Failed%20to%20link%20profile");
   }
 
-  revalidateUserPaths();
+  revalidateUserPaths("/users");
   redirect("/users?success=Auth%20user%20linked%20to%20staff%20profile");
 }
 
@@ -136,7 +139,7 @@ export async function createUser(formData: FormData) {
     redirect(`/users?error=${encodeURIComponent(error.message)}`);
   }
 
-  revalidateUserPaths();
+  revalidateUserPaths("/users");
   redirect("/users?success=User account created");
 }
 
@@ -206,7 +209,7 @@ export async function updateUser(formData: FormData) {
     }
   }
 
-  revalidateUserPaths();
+  revalidateUserPaths("/users");
   redirect("/users?success=User account updated");
 }
 
@@ -250,7 +253,7 @@ export async function deleteUser(formData: FormData) {
     }
   }
 
-  revalidateUserPaths();
+  revalidateUserPaths("/users");
   redirect("/users?success=User account removed");
 }
 
