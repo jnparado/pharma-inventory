@@ -9,6 +9,7 @@ import {
   isSchemaError,
   normalizeBatchRows,
   normalizeJoinedProduct,
+  PURCHASE_ORDER_SELECTS,
   SALE_DETAIL_SELECTS,
   SALE_WITH_ITEMS_SELECTS,
   TRANSACTION_SELECTS,
@@ -53,70 +54,76 @@ export async function getCategories(): Promise<Category[]> {
 }
 
 export const getProductsWithStock = cache(async (): Promise<ProductWithStock[]> => {
-  const supabase = createAdminClient();
-  let productsRes = await supabase
-    .from("products")
-    .select("*, categories(name)")
-    .order("product_name");
-
-  if (productsRes.error) {
-    productsRes = await supabase
+  try {
+    const supabase = createAdminClient();
+    let productsRes = await supabase
       .from("products")
-      .select("*")
+      .select("*, categories(name)")
       .order("product_name");
-  }
-  if (productsRes.error) {
-    throw new Error(`Failed to load products: ${productsRes.error.message}`);
-  }
 
-  const batchesRes = await supabase
-    .from("product_batches")
-    .select("product_id, quantity_remaining, expiry_date");
-
-  const stockByProduct = new Map<
-    string,
-    { total: number; nearestExpiry: string | null }
-  >();
-
-  if (!batchesRes.error) {
-    for (const batch of batchesRes.data ?? []) {
-      if (!batch.product_id) continue;
-      const qty = batch.quantity_remaining ?? 0;
-      const entry = stockByProduct.get(batch.product_id) ?? {
-        total: 0,
-        nearestExpiry: null,
-      };
-      entry.total += qty;
-      if (
-        qty > 0 &&
-        batch.expiry_date &&
-        (entry.nearestExpiry === null || batch.expiry_date < entry.nearestExpiry)
-      ) {
-        entry.nearestExpiry = batch.expiry_date;
-      }
-      stockByProduct.set(batch.product_id, entry);
+    if (productsRes.error) {
+      productsRes = await supabase
+        .from("products")
+        .select("*")
+        .order("product_name");
     }
-  }
+    if (productsRes.error) {
+      console.error("Failed to load products:", productsRes.error.message);
+      return [];
+    }
 
-  return (productsRes.data as unknown as ProductWithStock[]).map((product) => {
-    const batchStock = stockByProduct.get(product.id);
-    const flatQty = Number(
-      (product as ProductWithStock & { quantity?: number }).quantity ?? 0
-    );
-    const entry = batchStock ?? {
-      total: flatQty,
-      nearestExpiry:
-        (product as ProductWithStock & { expiry_date?: string | null })
-          .expiry_date ??
-        (product as ProductWithStock & { exp_date?: string | null }).exp_date ??
-        null,
-    };
-    return {
-      ...product,
-      total_stock: entry.total,
-      nearest_expiry: entry.nearestExpiry,
-    };
-  });
+    const batchesRes = await supabase
+      .from("product_batches")
+      .select("product_id, quantity_remaining, expiry_date");
+
+    const stockByProduct = new Map<
+      string,
+      { total: number; nearestExpiry: string | null }
+    >();
+
+    if (!batchesRes.error) {
+      for (const batch of batchesRes.data ?? []) {
+        if (!batch.product_id) continue;
+        const qty = batch.quantity_remaining ?? 0;
+        const entry = stockByProduct.get(batch.product_id) ?? {
+          total: 0,
+          nearestExpiry: null,
+        };
+        entry.total += qty;
+        if (
+          qty > 0 &&
+          batch.expiry_date &&
+          (entry.nearestExpiry === null || batch.expiry_date < entry.nearestExpiry)
+        ) {
+          entry.nearestExpiry = batch.expiry_date;
+        }
+        stockByProduct.set(batch.product_id, entry);
+      }
+    }
+
+    return (productsRes.data as unknown as ProductWithStock[]).map((product) => {
+      const batchStock = stockByProduct.get(product.id);
+      const flatQty = Number(
+        (product as ProductWithStock & { quantity?: number }).quantity ?? 0
+      );
+      const entry = batchStock ?? {
+        total: flatQty,
+        nearestExpiry:
+          (product as ProductWithStock & { expiry_date?: string | null })
+            .expiry_date ??
+          (product as ProductWithStock & { exp_date?: string | null }).exp_date ??
+          null,
+      };
+      return {
+        ...product,
+        total_stock: entry.total,
+        nearest_expiry: entry.nearestExpiry,
+      };
+    });
+  } catch (e) {
+    console.error("getProductsWithStock:", e);
+    return [];
+  }
 });
 
 export async function getSuppliers(): Promise<Supplier[]> {
@@ -406,15 +413,19 @@ export async function getStockTransfers() {
 
 export async function getPurchaseOrders() {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("purchase_orders")
-    .select(
-      "*, suppliers(company_name), purchase_order_items(*, products(product_name, sku, unit))"
-    )
-    .order("created_at", { ascending: false })
-    .limit(50);
-  if (error) throw new Error(`Failed to load orders: ${error.message}`);
-  return data as PurchaseOrder[];
+
+  for (const select of PURCHASE_ORDER_SELECTS) {
+    const { data, error } = await supabase
+      .from("purchase_orders")
+      .select(select)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (!error) return data as unknown as PurchaseOrder[];
+    if (!isSchemaError(error.message)) break;
+  }
+
+  return [];
 }
 
 export async function getPrescriptions() {
@@ -543,6 +554,9 @@ export async function getNotifications(limit = 15): Promise<Notification[]> {
     .select("*")
     .order("created_at", { ascending: false })
     .limit(limit);
-  if (error) throw new Error(`Failed to load notifications: ${error.message}`);
+  if (error) {
+    console.error("Failed to load notifications:", error.message);
+    return [];
+  }
   return data;
 }

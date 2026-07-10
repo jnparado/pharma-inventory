@@ -37,9 +37,16 @@ export function LoginForm({
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, next: destination }),
+        redirect: "follow",
       });
+
+      if (res.redirected) {
+        window.location.href = res.url;
+        return;
+      }
 
       const data = (await res.json()) as { error?: string; next?: string };
 

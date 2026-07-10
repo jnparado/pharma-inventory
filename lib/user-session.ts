@@ -33,16 +33,28 @@ async function resolveAuthUser(): Promise<User | null> {
   if (!authUser) return null;
 
   if (authUser.id) {
-    const byId = await getUserById(authUser.id);
-    if (byId) return byId;
+    try {
+      const byId = await getUserById(authUser.id);
+      if (byId) return byId;
+    } catch {
+      // users table may differ on Supabase
+    }
   }
 
   if (authUser.email) {
-    const byEmail = await getUserByEmail(authUser.email);
-    if (byEmail) return byEmail;
+    try {
+      const byEmail = await getUserByEmail(authUser.email);
+      if (byEmail) return byEmail;
+    } catch {
+      // users table may differ on Supabase
+    }
   }
 
-  return ensureUserProfileFromAuth(authUser);
+  try {
+    return await ensureUserProfileFromAuth(authUser);
+  } catch {
+    return staticAuthUserProfile();
+  }
 }
 
 /** Current staff profile for static or Supabase Auth session (deduped per request). */

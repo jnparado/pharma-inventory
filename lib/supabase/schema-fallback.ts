@@ -40,6 +40,25 @@ export const SALE_DETAIL_SELECTS = [
   "*, sale_items(*)",
 ] as const;
 
+export const PURCHASE_ORDER_SELECTS = [
+  "*, suppliers(company_name), purchase_order_items(*, products(product_name, sku, unit))",
+  "*, suppliers(company_name), purchase_order_items(*, products(product_name, unit))",
+  "*, suppliers(company_name), purchase_order_items(*, products(product_name))",
+  "*, suppliers(company_name), purchase_order_items(*)",
+  "*, purchase_order_items(*, products(product_name))",
+  "*",
+] as const;
+
+export function authCookieOptions() {
+  return {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 60 * 60 * 24 * 30,
+  };
+}
+
 export function normalizeJoinedProduct(
   product: Record<string, unknown> | null | undefined
 ): {

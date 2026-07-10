@@ -5,7 +5,22 @@ import {
   getStaticLoginEmail,
   isStaticLogin,
 } from "@/lib/static-auth";
+import { authCookieOptions } from "@/lib/supabase/schema-fallback";
 import { createClient } from "@/lib/supabase/server";
+
+function redirectWithCookie(
+  request: Request,
+  destination: string,
+  cookieValue: string | null
+) {
+  const response = NextResponse.redirect(new URL(destination, request.url));
+  if (cookieValue) {
+    response.cookies.set(STATIC_AUTH_COOKIE, cookieValue, authCookieOptions());
+  } else {
+    response.cookies.delete(STATIC_AUTH_COOKIE);
+  }
+  return response;
+}
 
 export async function POST(request: Request) {
   const body = (await request.json()) as {
@@ -27,14 +42,7 @@ export async function POST(request: Request) {
   }
 
   if (isStaticLogin(email, password)) {
-    const response = NextResponse.json({ ok: true, next: destination });
-    response.cookies.set(STATIC_AUTH_COOKIE, getStaticLoginEmail(), {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 30,
-    });
-    return response;
+    return redirectWithCookie(request, destination, getStaticLoginEmail());
   }
 
   const supabase = await createClient();
@@ -48,10 +56,12 @@ export async function POST(request: Request) {
   }
 
   if (data.user) {
-    await ensureUserProfileFromAuth(data.user);
+    try {
+      await ensureUserProfileFromAuth(data.user);
+    } catch {
+      // Allow login even if users table is missing columns.
+    }
   }
 
-  const response = NextResponse.json({ ok: true, next: destination });
-  response.cookies.delete(STATIC_AUTH_COOKIE);
-  return response;
+  return redirectWithCookie(request, destination, null);
 }
