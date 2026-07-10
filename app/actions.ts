@@ -5,10 +5,11 @@ import { requireAdmin } from "@/lib/admin-guard";
 import { insertCustomer, updateCustomerRow } from "@/lib/customers-db";
 import { convertPurchaseOrderToSalesInvoice } from "@/lib/purchase-order-invoice";
 import { deductStockFefo } from "@/lib/pos";
-import { revalidateInventory } from "@/lib/revalidate";
+import { revalidateInventory, revalidateProductsPage } from "@/lib/revalidate";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import {
+  deleteProductEntry,
   insertProductEntry,
   parseProductEntryBody,
   updateProductEntry,
@@ -26,7 +27,7 @@ export async function createProduct(formData: FormData) {
 
   const { error } = await insertProductEntry(supabase, input);
   if (error) redirect(`/products?error=${encodeURIComponent(error)}`);
-  revalidateInventory("products", "stock", "dashboard");
+  revalidateProductsPage();
   redirect("/products?success=Product added");
 }
 
@@ -52,7 +53,7 @@ export async function updateProduct(formData: FormData) {
     input
   );
   if (error) redirect(`/products?error=${encodeURIComponent(error)}`);
-  revalidateInventory("products", "stock", "dashboard");
+  revalidateProductsPage();
   redirect("/products?success=Product updated");
 }
 
@@ -65,24 +66,12 @@ export async function deleteProduct(formData: FormData) {
     redirect("/products?error=Missing product entry id");
   }
 
-  const { error: batchError } = await supabase
-    .from("product_batches")
-    .delete()
-    .eq("id", batchId);
-  if (batchError) {
-    redirect(`/products?error=${encodeURIComponent(batchError.message)}`);
+  const { error } = await deleteProductEntry(supabase, productId, batchId);
+  if (error) {
+    redirect(`/products?error=${encodeURIComponent(error)}`);
   }
 
-  const { count } = await supabase
-    .from("product_batches")
-    .select("id", { count: "exact", head: true })
-    .eq("product_id", productId);
-
-  if ((count ?? 0) === 0) {
-    await supabase.from("products").delete().eq("id", productId);
-  }
-
-  revalidateInventory("products", "stock", "dashboard");
+  revalidateProductsPage();
   redirect("/products?success=Product removed");
 }
 

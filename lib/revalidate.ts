@@ -14,6 +14,11 @@ const GROUPS = {
 
 export type RevalidateGroup = keyof typeof GROUPS;
 
+/** Fast path: refresh only the product register page after CRUD. */
+export function revalidateProductsPage() {
+  revalidatePath("/products");
+}
+
 /** Invalidate only routes affected by a mutation (not the whole app). */
 export function revalidateInventory(...groups: RevalidateGroup[]) {
   const seen = new Set<string>();

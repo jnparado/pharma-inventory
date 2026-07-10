@@ -25,12 +25,33 @@ type BatchRow = {
   products: unknown;
 };
 
+const REGISTER_COLUMN_CANDIDATES = [
+  "product_name",
+  "lot_number",
+  "brand",
+  "brand_name",
+  "quantity",
+  "expiry_date",
+  "exp_date",
+  "cost",
+  "purchase_price",
+  "selling_price_ws",
+  "selling_price_retail",
+  "selling_price",
+  "price",
+  "entry_date",
+  "received_date",
+] as const;
+
 const INVENTORY_SELECTS = [
   "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, received_date, created_at, products(product_name, brand_name, selling_price, selling_price_ws)",
   "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, created_at, products(product_name, brand_name, selling_price, selling_price_ws)",
   "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, created_at, products(product_name, brand_name, selling_price)",
   "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, created_at, products(product_name, selling_price)",
 ] as const;
+
+let cachedProductColumns: Set<string> | null = null;
+let cachedFlatRegister: boolean | null = null;
 
 function missingColumn(message: string, column: string): boolean {
   const lower = message.toLowerCase();
@@ -91,15 +112,53 @@ function mapProductRow(r: Record<string, unknown>): ProductInventoryLine {
   };
 }
 
-/** Write row to products, dropping unknown columns until Supabase accepts it. */
+async function getProductColumns(
+  supabase: SupabaseClient
+): Promise<Set<string>> {
+  if (cachedProductColumns) return cachedProductColumns;
+
+  const { data, error } = await supabase.from("products").select("*").limit(1);
+  if (!error && data?.[0]) {
+    cachedProductColumns = new Set(Object.keys(data[0]));
+    return cachedProductColumns;
+  }
+
+  cachedProductColumns = new Set(REGISTER_COLUMN_CANDIDATES);
+  return cachedProductColumns;
+}
+
+async function isFlatRegister(supabase: SupabaseClient): Promise<boolean> {
+  if (cachedFlatRegister !== null) return cachedFlatRegister;
+  const cols = await getProductColumns(supabase);
+  cachedFlatRegister = cols.has("lot_number") && cols.has("quantity");
+  return cachedFlatRegister;
+}
+
+function pickKnownColumns(
+  payload: Record<string, string | number | null>,
+  columns: Set<string>
+): Record<string, string | number | null> {
+  const row: Record<string, string | number | null> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (columns.has(key)) row[key] = value;
+  }
+  return row;
+}
+
+/** Single round-trip write; strips unknown columns from cache on schema errors. */
 async function writeProductsRow(
   supabase: SupabaseClient,
   payload: Record<string, string | number | null>,
   productId?: string
 ): Promise<{ id: string | null; error: string | null }> {
-  let row = { ...payload };
+  let columns = await getProductColumns(supabase);
+  let row = pickKnownColumns(payload, columns);
 
-  while (Object.keys(row).length > 0) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (Object.keys(row).length === 0) {
+      return { id: null, error: "Could not save product" };
+    }
+
     const result = productId
       ? await supabase
           .from("products")
@@ -117,15 +176,18 @@ async function writeProductsRow(
       return { id: productId ?? null, error: "Could not save product" };
     }
 
-    const badKey = Object.keys(row).find((key) =>
+    const badKeys = Object.keys(row).filter((key) =>
       missingColumn(result.error!.message, key)
     );
-    if (badKey) {
-      delete row[badKey];
-      continue;
+    if (badKeys.length === 0) {
+      return { id: null, error: result.error.message };
     }
 
-    return { id: null, error: result.error.message };
+    for (const key of badKeys) {
+      delete row[key];
+      columns.delete(key);
+    }
+    cachedProductColumns = columns;
   }
 
   return { id: null, error: "Could not save product" };
@@ -169,6 +231,10 @@ export async function fetchProductInventoryRows(
   supabase: SupabaseClient,
   batchId?: string
 ): Promise<ProductInventoryLine[]> {
+  if (await isFlatRegister(supabase)) {
+    return fetchFromProductsOnly(supabase, batchId);
+  }
+
   const fromProducts = await fetchFromProductsOnly(supabase, batchId);
   if (fromProducts.length > 0 || batchId) {
     return fromProducts;
@@ -238,25 +304,8 @@ async function insertProductRow(
   supabase: SupabaseClient,
   input: ProductEntryInput
 ): Promise<{ productId: string | null; error: string | null }> {
-  const full = buildRegisterPayload(input);
-
-  // Required minimum, then fill in the rest with an update.
-  const minimum = {
-    product_name: full.product_name,
-    lot_number: full.lot_number,
-  };
-
-  const created = await writeProductsRow(supabase, minimum);
-  if (!created.id) {
-    return { productId: null, error: created.error };
-  }
-
-  const updated = await writeProductsRow(supabase, full, created.id);
-  if (updated.error) {
-    return { productId: created.id, error: null };
-  }
-
-  return { productId: created.id, error: null };
+  const created = await writeProductsRow(supabase, buildRegisterPayload(input));
+  return { productId: created.id, error: created.error };
 }
 
 function buildBatchInsertRows(
@@ -307,11 +356,8 @@ export async function insertProductEntry(
   );
   if (!productId) return { error: productError ?? "Could not save product" };
 
-  const batchesReady =
-    (await supabase.from("product_batches").select("id").limit(1)).error === null;
-
-  if (!batchesReady) {
-    return { error: null, productId };
+  if (await isFlatRegister(supabase)) {
+    return { error: null, productId, batchId: productId };
   }
 
   let batchId: string | null = null;
@@ -340,7 +386,7 @@ export async function insertProductEntry(
     return { error: null, productId };
   }
 
-  await supabase.from("inventory_transactions").insert({
+  void supabase.from("inventory_transactions").insert({
     product_id: productId,
     batch_id: batchId,
     transaction_type: "stock_in",
@@ -357,10 +403,17 @@ export async function updateProductEntry(
   productId: string,
   input: ProductEntryInput
 ): Promise<{ error: string | null }> {
-  const full = buildRegisterPayload(input);
-  const updated = await writeProductsRow(supabase, full, productId);
+  const updated = await writeProductsRow(
+    supabase,
+    buildRegisterPayload(input),
+    productId
+  );
   if (updated.error) {
     return { error: updated.error };
+  }
+
+  if (await isFlatRegister(supabase)) {
+    return { error: null };
   }
 
   for (const row of buildBatchUpdateRows(input)) {
@@ -373,6 +426,37 @@ export async function updateProductEntry(
       missingColumn(error.message, key)
     );
     if (!isSchemaError) break;
+  }
+
+  return { error: null };
+}
+
+export async function deleteProductEntry(
+  supabase: SupabaseClient,
+  productId: string,
+  batchId: string
+): Promise<{ error: string | null }> {
+  if (await isFlatRegister(supabase)) {
+    const { error } = await supabase.from("products").delete().eq("id", productId);
+    return { error: error?.message ?? null };
+  }
+
+  const { error: batchError } = await supabase
+    .from("product_batches")
+    .delete()
+    .eq("id", batchId);
+  if (batchError) {
+    return { error: batchError.message };
+  }
+
+  const { count } = await supabase
+    .from("product_batches")
+    .select("id", { count: "exact", head: true })
+    .eq("product_id", productId);
+
+  if ((count ?? 0) === 0) {
+    const { error } = await supabase.from("products").delete().eq("id", productId);
+    if (error) return { error: error.message };
   }
 
   return { error: null };

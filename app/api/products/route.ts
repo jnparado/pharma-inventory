@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { revalidateInventory } from "@/lib/revalidate";
+import { revalidateProductsPage } from "@/lib/revalidate";
 import { isAdmin } from "@/lib/permissions";
 import {
+  deleteProductEntry,
+  fetchProductInventoryRows,
   insertProductEntry,
   parseProductEntryBody,
   updateProductEntry,
@@ -31,13 +33,20 @@ export async function POST(request: Request) {
     }
 
     const supabase = createAdminClient();
-    const { error } = await insertProductEntry(supabase, input);
+    const { error, productId } = await insertProductEntry(supabase, input);
     if (error) {
       return NextResponse.json({ error }, { status: 400 });
     }
 
-    revalidateInventory("products", "stock", "dashboard");
-    return NextResponse.json({ ok: true, message: "Product added" });
+    revalidateProductsPage();
+    const lines = productId
+      ? await fetchProductInventoryRows(supabase, productId)
+      : [];
+    return NextResponse.json({
+      ok: true,
+      message: "Product added",
+      line: lines[0] ?? null,
+    });
   } catch (e) {
     return NextResponse.json(
       { error: (e as Error).message ?? "Could not add product" },
@@ -78,11 +87,47 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error }, { status: 400 });
     }
 
-    revalidateInventory("products", "stock", "dashboard");
-    return NextResponse.json({ ok: true, message: "Product updated" });
+    revalidateProductsPage();
+    const lines = await fetchProductInventoryRows(supabase, productId);
+    return NextResponse.json({
+      ok: true,
+      message: "Product updated",
+      line: lines[0] ?? null,
+    });
   } catch (e) {
     return NextResponse.json(
       { error: (e as Error).message ?? "Could not update product" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  const denied = await requireAdminApi();
+  if (denied) return denied;
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const batchId = String(searchParams.get("batch_id") ?? "");
+    const productId = String(searchParams.get("product_id") ?? "");
+    if (!batchId || !productId) {
+      return NextResponse.json(
+        { error: "Missing product entry id" },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createAdminClient();
+    const { error } = await deleteProductEntry(supabase, productId, batchId);
+    if (error) {
+      return NextResponse.json({ error }, { status: 400 });
+    }
+
+    revalidateProductsPage();
+    return NextResponse.json({ ok: true, message: "Product removed" });
+  } catch (e) {
+    return NextResponse.json(
+      { error: (e as Error).message ?? "Could not delete product" },
       { status: 500 }
     );
   }

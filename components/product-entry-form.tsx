@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { buttonClass, inputClass, labelClass } from "@/components/ui";
 
@@ -168,6 +169,7 @@ export function ProductEntryForm({
   editing?: ProductEntry | null;
   today: string;
 }) {
+  const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -200,7 +202,17 @@ export function ProductEntryForm({
         return;
       }
 
-      window.location.href = `/products?success=${encodeURIComponent(data.message ?? "Saved")}`;
+      if (mode === "create") {
+        form.reset();
+        const dateInput = form.querySelector<HTMLInputElement>("#entry_date");
+        if (dateInput) dateInput.value = today;
+      }
+
+      router.replace(
+        `/products?success=${encodeURIComponent(data.message ?? "Saved")}`
+      );
+      router.refresh();
+      setLoading(false);
     } catch (err) {
       setError((err as Error).message || "Could not save product");
       setLoading(false);
