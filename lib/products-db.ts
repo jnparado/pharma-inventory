@@ -35,9 +35,20 @@ const INVENTORY_SELECTS = [
 
 function missingColumn(message: string, column: string): boolean {
   const lower = message.toLowerCase();
+  const col = column.toLowerCase();
   return (
-    lower.includes(column.toLowerCase()) &&
-    (lower.includes("column") || lower.includes("schema cache"))
+    lower.includes(col) &&
+    (lower.includes("column") ||
+      lower.includes("schema cache") ||
+      lower.includes("does not exist"))
+  );
+}
+
+function notNullViolation(message: string, column: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("not-null") &&
+    lower.includes(column.toLowerCase())
   );
 }
 
@@ -79,6 +90,22 @@ export async function fetchProductInventoryRows(
   supabase: SupabaseClient,
   batchId?: string
 ): Promise<ProductInventoryLine[]> {
+  try {
+    const batchRows = await fetchFromBatches(supabase, batchId);
+    if (batchRows.length > 0 || batchId) {
+      return batchRows;
+    }
+  } catch {
+    // Fall back to flat products table below.
+  }
+
+  return fetchFromProductsOnly(supabase, batchId);
+}
+
+async function fetchFromBatches(
+  supabase: SupabaseClient,
+  batchId?: string
+): Promise<ProductInventoryLine[]> {
   let lastError = "Could not load product inventory";
 
   for (const select of INVENTORY_SELECTS) {
@@ -97,15 +124,61 @@ export async function fetchProductInventoryRows(
     }
 
     lastError = error.message;
-    const isSchemaError = select
-      .split(",")
-      .some((part) => missingColumn(error.message, part.trim().split("(")[0].trim()));
-    if (!isSchemaError && !missingColumn(error.message, "products")) {
-      break;
-    }
   }
 
+  if (batchId) return [];
+
   throw new Error(`Failed to load product inventory: ${lastError}`);
+}
+
+async function fetchFromProductsOnly(
+  supabase: SupabaseClient,
+  productId?: string
+): Promise<ProductInventoryLine[]> {
+  const selects = [
+    "id, product_name, brand_name, brand, lot_number, quantity, qty, expiry_date, exp_date, cost, purchase_price, selling_price_ws, selling_price_retail, selling_price, price, entry_date, received_date, created_at",
+    "id, product_name, brand_name, lot_number, quantity, expiry_date, cost, selling_price_retail, selling_price, entry_date, created_at",
+    "id, product_name, brand_name, quantity, selling_price, created_at",
+    "id, product_name, created_at",
+  ];
+
+  for (const select of selects) {
+    let query = supabase.from("products").select(select).order("created_at", {
+      ascending: false,
+    });
+    if (productId) {
+      query = query.eq("id", productId);
+    }
+
+    const { data, error } = await query;
+    if (error) continue;
+
+    return (data ?? []).map((row) => {
+      const r = row as unknown as Record<string, unknown>;
+      return {
+        batch_id: String(r.id),
+        product_id: String(r.id),
+        entry_date:
+          (r.entry_date as string | null) ??
+          (r.received_date as string | null) ??
+          (r.created_at as string | null)?.slice(0, 10) ??
+          null,
+        product_name: String(r.product_name ?? "Unknown"),
+        brand: (r.brand_name as string | null) ?? (r.brand as string | null) ?? null,
+        quantity: Number(r.quantity ?? r.qty ?? 0),
+        lot_number: String(r.lot_number ?? "—"),
+        expiry_date:
+          (r.expiry_date as string | null) ?? (r.exp_date as string | null) ?? null,
+        cost: Number(r.cost ?? r.purchase_price ?? 0) || null,
+        selling_price_ws: Number(r.selling_price_ws ?? 0) || null,
+        selling_price_retail: Number(
+          r.selling_price_retail ?? r.selling_price ?? r.price ?? 0
+        ),
+      };
+    });
+  }
+
+  return [];
 }
 
 function skuFromLot(lotNumber: string): string {
@@ -114,50 +187,226 @@ function skuFromLot(lotNumber: string): string {
   return `${base}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
 }
 
-export async function insertProductEntry(
-  supabase: SupabaseClient,
-  input: ProductEntryInput
-): Promise<{ error: string | null; productId?: string; batchId?: string }> {
-  const productBase = {
-    product_name: input.product_name.trim(),
-    brand_name: input.brand.trim() || null,
-    sku: skuFromLot(input.lot_number),
+async function resolveCategoryId(
+  supabase: SupabaseClient
+): Promise<string | null> {
+  const { data: general } = await supabase
+    .from("categories")
+    .select("id")
+    .ilike("name", "General")
+    .maybeSingle();
+  if (general?.id) return general.id;
+
+  const { data: anyCategory } = await supabase
+    .from("categories")
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+  if (anyCategory?.id) return anyCategory.id;
+
+  const { data: created } = await supabase
+    .from("categories")
+    .insert({ name: "General" })
+    .select("id")
+    .single();
+
+  return created?.id ?? null;
+}
+
+function buildProductInsertRows(
+  input: ProductEntryInput,
+  categoryId: string | null
+): Record<string, string | number | null>[] {
+  const name = input.product_name.trim();
+  const sku = skuFromLot(input.lot_number);
+  const lot = input.lot_number.trim();
+  const price = input.selling_price_retail;
+  const brand = input.brand.trim() || null;
+  const qty = input.quantity;
+
+  const flat: Record<string, string | number | null> = {
+    product_name: name,
+    brand_name: brand,
+    brand,
+    lot_number: lot,
+    quantity: qty,
+    qty,
+    expiry_date: input.expiry_date,
+    exp_date: input.expiry_date,
+    cost: input.cost,
+    purchase_price: input.cost,
+    selling_price_ws: input.selling_price_ws,
+    selling_price_retail: price,
+    selling_price: price,
+    price,
+    entry_date: input.entry_date,
+    received_date: input.entry_date,
     unit: "pcs",
-    selling_price: input.selling_price_retail,
-    reorder_level: 10,
+    ...(categoryId ? { category_id: categoryId } : {}),
   };
 
-  const productVariants = [
-    { ...productBase, selling_price_ws: input.selling_price_ws },
-    productBase,
+  const rows: Record<string, string | number | null>[] = [flat];
+
+  const optionalGroups = [
+    { sku },
+    { selling_price: price },
+    { selling_price_retail: price },
+    { retail_price: price },
+    { unit: "pcs", selling_price: price },
+    { unit: "pcs", selling_price_retail: price },
+    {
+      product_name: name,
+      brand_name: brand,
+      lot_number: lot,
+      quantity: qty,
+      selling_price_retail: price,
+    },
+    { product_name: name, brand_name: brand, selling_price_retail: price },
+    { product_name: name, selling_price_retail: price },
+    { product_name: name, brand_name: brand, sku, selling_price: price },
   ];
 
-  let productId: string | null = null;
-  let lastProductError = "Could not save product";
-
-  for (const row of productVariants) {
-    const { data, error } = await supabase
-      .from("products")
-      .insert(row)
-      .select("id")
-      .single();
-
-    if (!error && data) {
-      productId = data.id;
-      break;
-    }
-
-    lastProductError = error?.message ?? lastProductError;
-    const isSchemaError =
-      error &&
-      Object.keys(row).some((key) => missingColumn(error.message, key));
-    if (!isSchemaError) return { error: lastProductError };
+  for (const extra of optionalGroups) {
+    const withLot = {
+      product_name: name,
+      brand_name: brand,
+      lot_number: lot,
+      ...extra,
+    } as unknown as Record<string, string | number | null>;
+    rows.push({
+      ...withLot,
+      ...(categoryId ? { category_id: categoryId } : {}),
+    });
+    rows.push(withLot);
   }
 
-  if (!productId) return { error: lastProductError };
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = JSON.stringify(row);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
-  const batchBase = {
-    product_id: productId,
+function friendlyProductError(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes("category_id") || lower.includes("categories")) {
+    return "Database setup needed: run supabase/products.sql in Supabase SQL Editor, then try again.";
+  }
+  if (lower.includes("duplicate key") && lower.includes("sku")) {
+    return "This lot number was already used. Enter a different lot number.";
+  }
+  return message;
+}
+
+async function insertProductRow(
+  supabase: SupabaseClient,
+  input: ProductEntryInput
+): Promise<{ productId: string | null; error: string | null }> {
+  let categoryId: string | null = await resolveCategoryId(supabase);
+  let lastError = "Could not save product";
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const rows = buildProductInsertRows(input, categoryId);
+
+    for (const row of rows) {
+      const { data, error } = await supabase
+        .from("products")
+        .insert(row)
+        .select("id")
+        .single();
+
+      if (!error && data) {
+        return { productId: data.id, error: null };
+      }
+
+      lastError = error?.message ?? lastError;
+      if (!error) continue;
+
+      if (notNullViolation(error.message, "category_id") && !categoryId) {
+        categoryId = await resolveCategoryId(supabase);
+        break;
+      }
+
+      if (notNullViolation(error.message, "category_id") && categoryId) {
+        continue;
+      }
+
+      if (
+        notNullViolation(error.message, "lot_number") ||
+        notNullViolation(error.message, "product_name") ||
+        notNullViolation(error.message, "brand_name")
+      ) {
+        continue;
+      }
+
+      const isSchemaError = Object.keys(row).some((key) =>
+        missingColumn(error.message, key)
+      );
+      if (!isSchemaError) {
+        return { productId: null, error: friendlyProductError(lastError) };
+      }
+    }
+
+    if (categoryId) continue;
+    break;
+  }
+
+  return { productId: null, error: friendlyProductError(lastError) };
+}
+
+function buildBatchInsertRows(
+  productId: string,
+  input: ProductEntryInput
+): Record<string, string | number | null>[] {
+  const lot = input.lot_number.trim();
+  const qty = input.quantity;
+
+  const rows: Record<string, string | number | null>[] = [
+    {
+      product_id: productId,
+      batch_number: lot,
+      quantity_remaining: qty,
+    },
+    {
+      product_id: productId,
+      batch_number: lot,
+      quantity_received: qty,
+      quantity_remaining: qty,
+    },
+    {
+      product_id: productId,
+      batch_number: lot,
+      quantity_received: qty,
+      quantity_remaining: qty,
+      purchase_price: input.cost,
+      expiry_date: input.expiry_date,
+    },
+    {
+      product_id: productId,
+      batch_number: lot,
+      quantity_received: qty,
+      quantity_remaining: qty,
+      purchase_price: input.cost,
+      expiry_date: input.expiry_date,
+      received_date: input.entry_date,
+    },
+  ];
+
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = JSON.stringify(row);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildBatchUpdateRows(
+  input: ProductEntryInput
+): Record<string, string | number | null>[] {
+  const base = {
     batch_number: input.lot_number.trim(),
     expiry_date: input.expiry_date,
     quantity_received: input.quantity,
@@ -165,15 +414,30 @@ export async function insertProductEntry(
     purchase_price: input.cost,
   };
 
-  const batchVariants = [
-    { ...batchBase, received_date: input.entry_date },
-    batchBase,
-  ];
+  return [base, { ...base, received_date: input.entry_date }];
+}
+
+export async function insertProductEntry(
+  supabase: SupabaseClient,
+  input: ProductEntryInput
+): Promise<{ error: string | null; productId?: string; batchId?: string }> {
+  const { productId, error: productError } = await insertProductRow(
+    supabase,
+    input
+  );
+  if (!productId) return { error: productError ?? "Could not save product" };
+
+  const flatOnly =
+    (await supabase.from("product_batches").select("id").limit(1)).error !== null;
+
+  if (flatOnly) {
+    return { error: null, productId };
+  }
 
   let batchId: string | null = null;
   let lastBatchError = "Could not save batch";
 
-  for (const row of batchVariants) {
+  for (const row of buildBatchInsertRows(productId, input)) {
     const { data, error } = await supabase
       .from("product_batches")
       .insert(row)
@@ -200,18 +464,31 @@ export async function insertProductEntry(
     return { error: lastBatchError };
   }
 
-  const { error: txError } = await supabase.from("inventory_transactions").insert({
-    product_id: productId,
-    batch_id: batchId,
-    transaction_type: "stock_in",
-    quantity: input.quantity,
-    reference_no: `Entry ${input.lot_number.trim()}`,
-  });
+  const { error: txError } = await supabase
+    .from("inventory_transactions")
+    .insert({
+      product_id: productId,
+      batch_id: batchId,
+      transaction_type: "stock_in",
+      quantity: input.quantity,
+      reference_no: `Entry ${input.lot_number.trim()}`,
+    });
 
   if (txError) {
-    await supabase.from("product_batches").delete().eq("id", batchId);
-    await supabase.from("products").delete().eq("id", productId);
-    return { error: txError.message };
+    const { error: txFallbackError } = await supabase
+      .from("inventory_transactions")
+      .insert({
+        product_id: productId,
+        batch_id: batchId,
+        transaction_type: "stock_in",
+        quantity: input.quantity,
+      });
+
+    if (txFallbackError) {
+      await supabase.from("product_batches").delete().eq("id", batchId);
+      await supabase.from("products").delete().eq("id", productId);
+      return { error: txFallbackError.message };
+    }
   }
 
   return { error: null, productId, batchId };
@@ -235,6 +512,10 @@ export async function updateProductEntry(
       brand_name: input.brand.trim() || null,
       selling_price: input.selling_price_retail,
     },
+    {
+      product_name: input.product_name.trim(),
+      selling_price: input.selling_price_retail,
+    },
   ];
 
   let productError: string | null = null;
@@ -255,25 +536,7 @@ export async function updateProductEntry(
   }
   if (productError) return { error: productError };
 
-  const batchUpdates = [
-    {
-      batch_number: input.lot_number.trim(),
-      expiry_date: input.expiry_date,
-      quantity_received: input.quantity,
-      quantity_remaining: input.quantity,
-      purchase_price: input.cost,
-      received_date: input.entry_date,
-    },
-    {
-      batch_number: input.lot_number.trim(),
-      expiry_date: input.expiry_date,
-      quantity_received: input.quantity,
-      quantity_remaining: input.quantity,
-      purchase_price: input.cost,
-    },
-  ];
-
-  for (const row of batchUpdates) {
+  for (const row of buildBatchUpdateRows(input)) {
     const { error } = await supabase
       .from("product_batches")
       .update(row)
@@ -286,4 +549,34 @@ export async function updateProductEntry(
   }
 
   return { error: "Could not update batch" };
+}
+
+export function parseProductEntryBody(body: Record<string, unknown>) {
+  const quantity = Number(body.quantity);
+  return {
+    entry_date:
+      String(body.entry_date ?? "").trim() ||
+      new Date().toISOString().slice(0, 10),
+    product_name: String(body.product_name ?? "").trim(),
+    brand: String(body.brand ?? "").trim(),
+    quantity,
+    lot_number: String(body.lot_number ?? "").trim(),
+    expiry_date: String(body.expiry_date ?? "").trim() || null,
+    cost: Number(body.cost ?? 0),
+    selling_price_ws: Number(body.selling_price_ws ?? 0),
+    selling_price_retail: Number(body.selling_price_retail ?? 0),
+  } satisfies ProductEntryInput;
+}
+
+export function validateProductEntry(input: ProductEntryInput): string | null {
+  if (!input.product_name || !input.lot_number) {
+    return "Product name and lot number are required";
+  }
+  if (!input.brand) {
+    return "Brand is required";
+  }
+  if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
+    return "Enter a valid whole-number quantity";
+  }
+  return null;
 }

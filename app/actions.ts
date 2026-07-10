@@ -8,68 +8,26 @@ import { deductStockFefo } from "@/lib/pos";
 import { revalidateInventory } from "@/lib/revalidate";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-import { insertProductEntry, updateProductEntry } from "@/lib/products-db";
-
-function parseProductEntry(formData: FormData) {
-  const product_name = String(formData.get("product_name") ?? "").trim();
-  const brand = String(formData.get("brand") ?? "").trim();
-  const lot_number = String(formData.get("lot_number") ?? "").trim();
-  const quantity = Number(formData.get("quantity"));
-  const cost = Number(formData.get("cost") ?? 0);
-  const selling_price_ws = Number(formData.get("selling_price_ws") ?? 0);
-  const selling_price_retail = Number(formData.get("selling_price_retail") ?? 0);
-  const expiry_date =
-    String(formData.get("expiry_date") ?? "").trim() || null;
-  const entry_date =
-    String(formData.get("entry_date") ?? "").trim() ||
-    new Date().toISOString().slice(0, 10);
-
-  return {
-    entry_date,
-    product_name,
-    brand,
-    quantity,
-    lot_number,
-    expiry_date,
-    cost,
-    selling_price_ws,
-    selling_price_retail,
-  };
-}
+import {
+  insertProductEntry,
+  parseProductEntryBody,
+  updateProductEntry,
+  validateProductEntry,
+} from "@/lib/products-db";
 
 export async function createProduct(formData: FormData) {
-  try {
-    await requireAdmin("/products");
-    const supabase = createAdminClient();
-    const input = parseProductEntry(formData);
-
-    if (!input.product_name || !input.lot_number) {
-      redirect("/products?error=Product name and lot number are required");
-    }
-    if (!input.brand) {
-      redirect("/products?error=Brand is required");
-    }
-    if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
-      redirect("/products?error=Enter a valid quantity");
-    }
-
-    const { error } = await insertProductEntry(supabase, input);
-    if (error) redirect(`/products?error=${encodeURIComponent(error)}`);
-    revalidateInventory("products", "stock", "dashboard");
-    redirect("/products?success=Product added");
-  } catch (e) {
-    if (
-      e &&
-      typeof e === "object" &&
-      "digest" in e &&
-      String((e as { digest?: string }).digest).startsWith("NEXT_REDIRECT")
-    ) {
-      throw e;
-    }
-    redirect(
-      `/products?error=${encodeURIComponent((e as Error).message ?? "Could not add product")}`
-    );
+  await requireAdmin("/products");
+  const supabase = createAdminClient();
+  const input = parseProductEntryBody(Object.fromEntries(formData.entries()));
+  const validationError = validateProductEntry(input);
+  if (validationError) {
+    redirect(`/products?error=${encodeURIComponent(validationError)}`);
   }
+
+  const { error } = await insertProductEntry(supabase, input);
+  if (error) redirect(`/products?error=${encodeURIComponent(error)}`);
+  revalidateInventory("products", "stock", "dashboard");
+  redirect("/products?success=Product added");
 }
 
 export async function updateProduct(formData: FormData) {
@@ -81,12 +39,10 @@ export async function updateProduct(formData: FormData) {
     redirect("/products?error=Missing product entry id");
   }
 
-  const input = parseProductEntry(formData);
-  if (!input.product_name || !input.lot_number) {
-    redirect("/products?error=Product name and lot number are required");
-  }
-  if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
-    redirect("/products?error=Enter a valid quantity");
+  const input = parseProductEntryBody(Object.fromEntries(formData.entries()));
+  const validationError = validateProductEntry(input);
+  if (validationError) {
+    redirect(`/products?error=${encodeURIComponent(validationError)}`);
   }
 
   const { error } = await updateProductEntry(

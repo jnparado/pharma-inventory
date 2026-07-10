@@ -1,9 +1,6 @@
 import Link from "next/link";
-import {
-  createProduct,
-  deleteProduct,
-  updateProduct,
-} from "@/app/actions";
+import { deleteProduct } from "@/app/actions";
+import { ProductEntryForm } from "@/components/product-entry-form";
 import {
   getProductInventoryLineByBatchId,
   getProductInventoryLines,
@@ -18,160 +15,7 @@ import {
   FlashMessage,
   PageHeader,
   SetupNotice,
-  buttonClass,
-  inputClass,
-  labelClass,
 } from "@/components/ui";
-
-function ProductFields({
-  editing,
-  today,
-}: {
-  editing?: {
-    entry_date: string | null;
-    product_name: string;
-    brand: string | null;
-    quantity: number;
-    lot_number: string;
-    expiry_date: string | null;
-    cost: number | null;
-    selling_price_ws: number | null;
-    selling_price_retail: number;
-  } | null;
-  today: string;
-}) {
-  return (
-    <>
-      <div>
-        <label className={labelClass} htmlFor="entry_date">
-          Date <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="entry_date"
-          name="entry_date"
-          type="date"
-          required
-          defaultValue={editing?.entry_date ?? today}
-          className={inputClass}
-        />
-      </div>
-      <div>
-        <label className={labelClass} htmlFor="product_name">
-          Product name <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="product_name"
-          name="product_name"
-          required
-          defaultValue={editing?.product_name ?? ""}
-          placeholder="Amoxicillin 500mg"
-          className={inputClass}
-        />
-      </div>
-      <div>
-        <label className={labelClass} htmlFor="brand">
-          Brand <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="brand"
-          name="brand"
-          required
-          defaultValue={editing?.brand ?? ""}
-          placeholder="Unilab"
-          className={inputClass}
-        />
-      </div>
-      <div>
-        <label className={labelClass} htmlFor="quantity">
-          Quantity <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="quantity"
-          name="quantity"
-          type="number"
-          min={1}
-          required
-          defaultValue={editing?.quantity ?? ""}
-          placeholder="100"
-          className={inputClass}
-        />
-      </div>
-      <div>
-        <label className={labelClass} htmlFor="lot_number">
-          Lot number <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="lot_number"
-          name="lot_number"
-          required
-          defaultValue={editing?.lot_number ?? ""}
-          placeholder="LOT-2026-001"
-          className={inputClass}
-        />
-      </div>
-      <div>
-        <label className={labelClass} htmlFor="expiry_date">
-          Exp date
-        </label>
-        <input
-          id="expiry_date"
-          name="expiry_date"
-          type="date"
-          defaultValue={editing?.expiry_date ?? ""}
-          className={inputClass}
-        />
-      </div>
-      <div>
-        <label className={labelClass} htmlFor="cost">
-          Cost (&#8369;) <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="cost"
-          name="cost"
-          type="number"
-          step="0.01"
-          min={0}
-          required
-          defaultValue={editing?.cost ?? ""}
-          placeholder="0.00"
-          className={inputClass}
-        />
-      </div>
-      <div>
-        <label className={labelClass} htmlFor="selling_price_ws">
-          Selling price WS (&#8369;) <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="selling_price_ws"
-          name="selling_price_ws"
-          type="number"
-          step="0.01"
-          min={0}
-          required
-          defaultValue={editing?.selling_price_ws ?? ""}
-          placeholder="0.00"
-          className={inputClass}
-        />
-      </div>
-      <div>
-        <label className={labelClass} htmlFor="selling_price_retail">
-          Selling price retail (&#8369;) <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="selling_price_retail"
-          name="selling_price_retail"
-          type="number"
-          step="0.01"
-          min={0}
-          required
-          defaultValue={editing?.selling_price_retail ?? ""}
-          placeholder="0.00"
-          className={inputClass}
-        />
-      </div>
-    </>
-  );
-}
 
 export default async function ProductsPage({
   searchParams,
@@ -214,35 +58,21 @@ export default async function ProductsPage({
 
       {isAdmin && editing && (
         <Card title="Edit product" className="mb-6">
-          <form action={updateProduct} className="grid gap-4 sm:grid-cols-3">
-            <input type="hidden" name="batch_id" value={editing.batch_id} />
-            <input type="hidden" name="product_id" value={editing.product_id} />
-            <ProductFields editing={editing} today={today} />
-            <div className="flex flex-wrap gap-2 sm:col-span-3">
-              <button type="submit" className={buttonClass}>
-                Save changes
-              </button>
-              <Link
-                href="/products"
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Cancel
-              </Link>
-            </div>
-          </form>
+          <ProductEntryForm
+            mode="edit"
+            editing={{
+              ...editing,
+              batch_id: editing.batch_id,
+              product_id: editing.product_id,
+            }}
+            today={today}
+          />
         </Card>
       )}
 
       {isAdmin && !editing && (
         <Card title="Add product" className="mb-6">
-          <form action={createProduct} className="grid gap-4 sm:grid-cols-3">
-            <ProductFields today={today} />
-            <div className="sm:col-span-3">
-              <button type="submit" className={buttonClass}>
-                Add product
-              </button>
-            </div>
-          </form>
+          <ProductEntryForm mode="create" today={today} />
         </Card>
       )}
 
