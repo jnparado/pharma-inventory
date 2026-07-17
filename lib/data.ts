@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { normalizeCustomer } from "@/lib/customers-db";
+import { fetchCustomers, fetchCustomerById } from "@/lib/customers-db";
 import { fetchProductInventoryRows, isFlatRegister } from "@/lib/products-db";
 import { isSupabaseConfigured } from "@/lib/env";
 import { getSalesMetrics } from "@/lib/sales-metrics";
@@ -138,22 +138,7 @@ export async function getSuppliers(): Promise<Supplier[]> {
 
 export async function getCustomers(): Promise<Customer[]> {
   const supabase = createAdminClient();
-  let { data, error } = await supabase
-    .from("customers")
-    .select("*")
-    .order("full_name");
-
-  if (error && error.message.toLowerCase().includes("full_name")) {
-    ({ data, error } = await supabase
-      .from("customers")
-      .select("*")
-      .order("created_at", { ascending: false }));
-  }
-
-  if (error) throw new Error(`Failed to load customers: ${error.message}`);
-  return (data ?? []).map((row) =>
-    normalizeCustomer(row as Record<string, unknown>)
-  );
+  return fetchCustomers(supabase);
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
@@ -193,13 +178,7 @@ export async function getSupplierById(id: string): Promise<Supplier | null> {
 
 export async function getCustomerById(id: string): Promise<Customer | null> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("customers")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw new Error(`Failed to load customer: ${error.message}`);
-  return data ? normalizeCustomer(data as Record<string, unknown>) : null;
+  return fetchCustomerById(supabase, id);
 }
 
 export const getUserById = cache(async (id: string): Promise<User | null> => {

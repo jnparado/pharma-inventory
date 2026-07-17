@@ -5,10 +5,14 @@ import {
   updateCustomer,
 } from "@/app/actions";
 import {
+  customerTableHasAddressColumn,
+} from "@/lib/customers-db";
+import {
   getCustomerById,
   getCustomers,
   isSupabaseConfigured,
 } from "@/lib/data";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { canManageRecords } from "@/lib/permissions";
 import { getActiveUser } from "@/lib/user-session";
 import { formatDateTime } from "@/lib/utils";
@@ -39,10 +43,12 @@ export default async function CustomersPage({
     );
   }
 
-  const [customers, activeUser, editing] = await Promise.all([
+  const supabase = createAdminClient();
+  const [customers, activeUser, editing, hasAddressColumn] = await Promise.all([
     getCustomers(),
     getActiveUser(),
     edit ? getCustomerById(edit) : Promise.resolve(null),
+    customerTableHasAddressColumn(supabase).catch(() => false),
   ]);
 
   const isAdmin = canManageRecords(activeUser);
@@ -54,6 +60,15 @@ export default async function CustomersPage({
         description="Manage customer records for sales and follow-up."
       />
       <FlashMessage success={success} error={error} />
+
+      {isAdmin && !hasAddressColumn && (
+        <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          The <code className="rounded bg-amber-100 px-1">address</code> column is
+          missing in Supabase. Run{" "}
+          <code className="rounded bg-amber-100 px-1">supabase/customers.sql</code>{" "}
+          in the SQL Editor, then edit each customer and save their address again.
+        </p>
+      )}
 
       {!isAdmin && (
         <p className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">

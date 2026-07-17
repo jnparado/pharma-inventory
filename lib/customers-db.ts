@@ -8,32 +8,76 @@ export type CustomerInput = {
   address: string | null;
 };
 
+const COLUMN_CANDIDATES = [
+  "full_name",
+  "name",
+  "email",
+  "phone",
+  "address",
+  "mailing_address",
+  "street_address",
+  "customer_address",
+  "location",
+  "notes",
+  "created_at",
+] as const;
+
+const ADDRESS_WRITE_COLUMNS = [
+  "address",
+  "mailing_address",
+  "street_address",
+  "customer_address",
+  "location",
+] as const;
+
+let cachedCustomerColumns: Set<string> | null = null;
+
+export function invalidateCustomerColumnCache(): void {
+  cachedCustomerColumns = null;
+}
+
 function missingColumn(message: string, column: string): boolean {
   const lower = message.toLowerCase();
+  const col = column.toLowerCase();
   return (
-    lower.includes(column.toLowerCase()) &&
-    (lower.includes("column") || lower.includes("schema cache"))
+    lower.includes(col) &&
+    (lower.includes("column") ||
+      lower.includes("schema cache") ||
+      lower.includes("does not exist"))
   );
 }
 
-function readAddress(row: Record<string, unknown>): string | null {
-  const candidates = [
-    row.address,
-    row.mailing_address,
-    row.street_address,
-    row.customer_address,
-    row.location,
-  ];
-  for (const value of candidates) {
+function readAddress(
+  row: Record<string, unknown>,
+  columns: Set<string>
+): string | null {
+  for (const key of ADDRESS_WRITE_COLUMNS) {
+    if (!columns.has(key)) continue;
+    const value = row[key];
     if (typeof value === "string" && value.trim()) {
       return value.trim();
     }
   }
+
+  if (columns.has("notes")) {
+    const notes = row.notes;
+    if (typeof notes === "string" && notes.trim()) {
+      return notes.trim();
+    }
+  }
+
   return null;
 }
 
 /** Map DB row variants (e.g. name vs full_name) to app Customer type. */
-export function normalizeCustomer(row: Record<string, unknown>): Customer {
+export function normalizeCustomer(
+  row: Record<string, unknown>,
+  columns?: Set<string>
+): Customer {
+  const cols =
+    columns ??
+    new Set(Object.keys(row).filter((k) => row[k] !== undefined));
+
   return {
     id: String(row.id),
     full_name:
@@ -42,108 +86,213 @@ export function normalizeCustomer(row: Record<string, unknown>): Customer {
       null,
     email: (row.email as string | null | undefined) ?? null,
     phone: (row.phone as string | null | undefined) ?? null,
-    address: readAddress(row),
+    address: readAddress(row, cols),
     created_at: (row.created_at as string | null | undefined) ?? null,
   };
 }
 
-type RowShape = "full" | "no_address" | "name_full" | "name_only";
-
-let cachedInsertShape: RowShape | null = null;
-let cachedUpdateShape: RowShape | null = null;
-
-function rowForShape(shape: RowShape, input: CustomerInput) {
-  const { full_name, email, phone, address } = input;
-  switch (shape) {
-    case "full":
-      return { full_name, email, phone, address };
-    case "no_address":
-      return { full_name, email, phone };
-    case "name_full":
-      return { name: full_name, email, phone, address };
-    case "name_only":
-      return { name: full_name, phone };
+async function getCustomerColumns(
+  supabase: SupabaseClient
+): Promise<Set<string>> {
+  if (cachedCustomerColumns) {
+    await refreshAddressColumnProbe(supabase, cachedCustomerColumns);
+    return cachedCustomerColumns;
   }
+
+  const { data, error } = await supabase.from("customers").select("*").limit(1);
+  if (!error && data?.[0]) {
+    cachedCustomerColumns = new Set(Object.keys(data[0]));
+    await refreshAddressColumnProbe(supabase, cachedCustomerColumns);
+    return cachedCustomerColumns;
+  }
+
+  const discovered = new Set<string>(["id"]);
+  await Promise.all(
+    COLUMN_CANDIDATES.map(async (col) => {
+      const { error: probeError } = await supabase
+        .from("customers")
+        .select(col)
+        .limit(0);
+      if (!probeError) discovered.add(col);
+    })
+  );
+  cachedCustomerColumns = discovered;
+  return cachedCustomerColumns;
 }
 
-const SHAPES: RowShape[] = ["full", "name_full", "no_address", "name_only"];
-
-const ADDRESS_COLUMNS = [
-  "address",
-  "mailing_address",
-  "street_address",
-  "customer_address",
-] as const;
-
-async function patchAddress(
+/** Pick up address column after Supabase migration without full cache bust. */
+async function refreshAddressColumnProbe(
   supabase: SupabaseClient,
-  id: string,
-  address: string | null
+  columns: Set<string>
 ): Promise<void> {
-  if (!address?.trim()) return;
+  if (ADDRESS_WRITE_COLUMNS.some((col) => columns.has(col)) || columns.has("notes")) {
+    return;
+  }
 
-  for (const column of ADDRESS_COLUMNS) {
-    const { error } = await supabase
-      .from("customers")
-      .update({ [column]: address.trim() })
-      .eq("id", id);
-
-    if (!error) return;
-    if (!missingColumn(error.message, column)) return;
+  for (const col of [...ADDRESS_WRITE_COLUMNS, "notes"] as const) {
+    const { error } = await supabase.from("customers").select(col).limit(0);
+    if (!error) columns.add(col);
   }
 }
 
-async function tryWrite(
-  supabase: SupabaseClient,
-  mode: "insert" | "update",
+export async function customerTableHasAddressColumn(
+  supabase: SupabaseClient
+): Promise<boolean> {
+  const columns = await getCustomerColumns(supabase);
+  return (
+    ADDRESS_WRITE_COLUMNS.some((col) => columns.has(col)) || columns.has("notes")
+  );
+}
+
+function buildCustomerPayload(
   input: CustomerInput,
-  id?: string
-): Promise<{ error: string | null; id?: string; shape?: RowShape }> {
-  const cached = mode === "insert" ? cachedInsertShape : cachedUpdateShape;
-  const order = cached
-    ? [cached, ...SHAPES.filter((shape) => shape !== cached)]
-    : SHAPES;
+  columns: Set<string>
+): Record<string, string | null> {
+  const row: Record<string, string | null> = {};
+  const name = input.full_name.trim();
 
-  let lastError = mode === "insert" ? "Could not save customer" : "Could not update customer";
+  if (columns.has("full_name")) row.full_name = name;
+  else if (columns.has("name")) row.name = name;
 
-  for (const shape of order) {
-    const row = rowForShape(shape, input);
-    const payload = row as unknown as Record<string, string | null>;
-    const result =
-      mode === "insert"
-        ? await supabase.from("customers").insert(payload).select("id").single()
-        : await supabase
-            .from("customers")
-            .update(payload)
-            .eq("id", id!)
-            .select("id")
-            .single();
+  if (columns.has("email")) row.email = input.email;
+  if (columns.has("phone")) row.phone = input.phone;
 
-    if (!result.error && result.data) {
-      if (mode === "insert") cachedInsertShape = shape;
-      else cachedUpdateShape = shape;
+  const addr = input.address?.trim() || null;
+  if (addr) {
+    let stored = false;
+    for (const col of ADDRESS_WRITE_COLUMNS) {
+      if (columns.has(col)) {
+        row[col] = addr;
+        stored = true;
+        break;
+      }
+    }
+    if (!stored && columns.has("notes")) {
+      row.notes = addr;
+    }
+  }
 
-      const customerId = String(result.data.id);
-      await patchAddress(supabase, customerId, input.address);
+  return row;
+}
 
-      return { error: null, id: customerId, shape };
+function pickKnownColumns(
+  payload: Record<string, string | null>,
+  columns: Set<string>
+): Record<string, string | null> {
+  const row: Record<string, string | null> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (columns.has(key)) row[key] = value;
+  }
+  return row;
+}
+
+async function writeCustomerRow(
+  supabase: SupabaseClient,
+  input: CustomerInput,
+  customerId?: string
+): Promise<{ id: string | null; error: string | null }> {
+  let columns = await getCustomerColumns(supabase);
+  let row = pickKnownColumns(buildCustomerPayload(input, columns), columns);
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (Object.keys(row).length === 0) {
+      return { id: null, error: "Could not save customer — no matching columns" };
     }
 
-    lastError = result.error?.message ?? lastError;
-    const isSchemaError = Object.keys(row).some((key) =>
-      missingColumn(result.error?.message ?? "", key)
+    const result = customerId
+      ? await supabase
+          .from("customers")
+          .update(row)
+          .eq("id", customerId)
+          .select("id")
+          .single()
+      : await supabase.from("customers").insert(row).select("id").single();
+
+    if (!result.error && result.data) {
+      invalidateCustomerColumnCache();
+      return { id: customerId ?? String(result.data.id), error: null };
+    }
+
+    if (!result.error) {
+      return { id: null, error: "Could not save customer" };
+    }
+
+    const badKeys = Object.keys(row).filter((key) =>
+      missingColumn(result.error!.message, key)
     );
-    if (!isSchemaError) return { error: result.error?.message ?? lastError };
+    if (badKeys.length === 0) {
+      return { id: null, error: result.error.message };
+    }
+
+    for (const key of badKeys) {
+      delete row[key];
+      columns.delete(key);
+    }
+    cachedCustomerColumns = columns;
+
+    row = pickKnownColumns(buildCustomerPayload(input, columns), columns);
   }
 
-  return { error: lastError };
+  return { id: null, error: "Could not save customer" };
+}
+
+export async function fetchCustomers(
+  supabase: SupabaseClient
+): Promise<Customer[]> {
+  const columns = await getCustomerColumns(supabase);
+
+  const orderAttempts = [
+    columns.has("full_name") ? ("full_name" as const) : null,
+    columns.has("name") ? ("name" as const) : null,
+    columns.has("created_at") ? ("created_at" as const) : null,
+  ].filter((col): col is "full_name" | "name" | "created_at" => col !== null);
+
+  for (const orderCol of orderAttempts) {
+    const { data, error } = await supabase
+      .from("customers")
+      .select("*")
+      .order(orderCol, {
+        ascending: orderCol === "created_at" ? false : true,
+      });
+
+    if (!error) {
+      return (data ?? []).map((row) =>
+        normalizeCustomer(row as Record<string, unknown>, columns)
+      );
+    }
+    if (!missingColumn(error.message, orderCol)) break;
+  }
+
+  const { data, error } = await supabase.from("customers").select("*");
+  if (error) throw new Error(`Failed to load customers: ${error.message}`);
+
+  return (data ?? []).map((row) =>
+    normalizeCustomer(row as Record<string, unknown>, columns)
+  );
+}
+
+export async function fetchCustomerById(
+  supabase: SupabaseClient,
+  id: string
+): Promise<Customer | null> {
+  const columns = await getCustomerColumns(supabase);
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to load customer: ${error.message}`);
+  return data
+    ? normalizeCustomer(data as Record<string, unknown>, columns)
+    : null;
 }
 
 export async function insertCustomer(
   supabase: SupabaseClient,
   input: CustomerInput
 ): Promise<{ error: string | null }> {
-  const result = await tryWrite(supabase, "insert", input);
+  const result = await writeCustomerRow(supabase, input);
   return { error: result.error };
 }
 
@@ -152,7 +301,7 @@ export async function updateCustomerRow(
   id: string,
   input: CustomerInput
 ): Promise<{ error: string | null }> {
-  const result = await tryWrite(supabase, "update", input, id);
+  const result = await writeCustomerRow(supabase, input, id);
   return { error: result.error };
 }
 
