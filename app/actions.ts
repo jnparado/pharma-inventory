@@ -11,10 +11,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   deleteProductEntry,
   insertProductEntry,
+  isFlatRegister,
   parseProductEntryBody,
   updateProductEntry,
   validateProductEntry,
 } from "@/lib/products-db";
+import { productSellingPrice } from "@/lib/supabase/schema-fallback";
 
 export async function createProduct(formData: FormData) {
   await requireAdmin("/products");
@@ -284,40 +286,58 @@ export async function updateTransferStatus(formData: FormData) {
 }
 
 export async function generatePurchaseOrders() {
+  await requireAdmin("/orders");
   const supabase = createAdminClient();
-  const [productsRes, batchesRes, suppliersRes] = await Promise.all([
-    supabase
-      .from("products")
-      .select("id, product_name, sku, reorder_level, selling_price")
-      .order("product_name"),
-    supabase
-      .from("product_batches")
-      .select("product_id, quantity_remaining"),
-    supabase.from("suppliers").select("id").limit(1),
-  ]);
+  const flat = await isFlatRegister(supabase);
 
-  if (productsRes.error || batchesRes.error) {
-    redirect("/orders?error=Failed to load inventory data");
-  }
+  const productsRes = await supabase
+    .from("products")
+    .select("*")
+    .order("product_name");
 
-  const stock = new Map<string, number>();
-  for (const b of batchesRes.data ?? []) {
-    if (!b.product_id) continue;
-    stock.set(
-      b.product_id,
-      (stock.get(b.product_id) ?? 0) + (b.quantity_remaining ?? 0)
+  if (productsRes.error) {
+    redirect(
+      `/orders?error=${encodeURIComponent(productsRes.error.message)}`
     );
   }
 
-  const lowStock = (productsRes.data ?? []).filter((p) => {
-    const qty = stock.get(p.id) ?? 0;
-    return qty <= (p.reorder_level ?? 10);
+  const products = (productsRes.data ?? []) as Record<string, unknown>[];
+  const stock = new Map<string, number>();
+
+  if (flat) {
+    for (const p of products) {
+      stock.set(String(p.id), Number(p.quantity ?? 0));
+    }
+  } else {
+    const batchesRes = await supabase
+      .from("product_batches")
+      .select("product_id, quantity_remaining");
+
+    if (batchesRes.error) {
+      redirect("/orders?error=Failed to load inventory data");
+    }
+
+    for (const b of batchesRes.data ?? []) {
+      if (!b.product_id) continue;
+      stock.set(
+        b.product_id,
+        (stock.get(b.product_id) ?? 0) + (b.quantity_remaining ?? 0)
+      );
+    }
+  }
+
+  const lowStock = products.filter((p) => {
+    const id = String(p.id);
+    const qty = stock.get(id) ?? 0;
+    const reorder = Number(p.reorder_level ?? 10);
+    return qty <= reorder;
   });
 
   if (lowStock.length === 0) {
     redirect("/orders?error=No products need reordering");
   }
 
+  const suppliersRes = await supabase.from("suppliers").select("id").limit(1);
   const supplierId = suppliersRes.data?.[0]?.id ?? null;
   const poNumber = `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
 
@@ -334,13 +354,16 @@ export async function generatePurchaseOrders() {
   if (poError) redirect(`/orders?error=${encodeURIComponent(poError.message)}`);
 
   const items = lowStock.map((p) => {
-    const current = stock.get(p.id) ?? 0;
-    const reorder = p.reorder_level ?? 10;
+    const id = String(p.id);
+    const current = stock.get(id) ?? 0;
+    const reorder = Number(p.reorder_level ?? 10);
+    const retail = productSellingPrice(p);
+    const cost = Number(p.cost ?? p.purchase_price ?? retail * 0.6);
     return {
       purchase_order_id: po.id,
-      product_id: p.id,
+      product_id: id,
       quantity: Math.max(reorder * 2 - current, reorder),
-      unit_cost: Number(p.selling_price) * 0.6,
+      unit_cost: cost > 0 ? cost : retail * 0.6,
     };
   });
 
@@ -355,6 +378,7 @@ export async function generatePurchaseOrders() {
 }
 
 export async function updateOrderStatus(formData: FormData) {
+  await requireAdmin("/orders");
   const supabase = createAdminClient();
   const id = String(formData.get("id"));
   const status = String(formData.get("status"));

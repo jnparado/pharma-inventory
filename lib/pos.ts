@@ -1,16 +1,42 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isFlatRegister } from "@/lib/products-db";
 
 export type FefoAllocation = {
   batch_id: string;
   quantity: number;
 };
 
-/** Non-expired stock available for a product (FEFO-eligible batches). */
+function productExpiryPassed(
+  expiry: string | null | undefined,
+  today: string
+): boolean {
+  if (!expiry) return false;
+  return expiry < today;
+}
+
+/** Non-expired stock available for a product (FEFO-eligible batches or flat quantity). */
 export async function getAvailableStock(
   supabase: SupabaseClient,
   productId: string
 ): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
+
+  if (await isFlatRegister(supabase)) {
+    const { data, error } = await supabase
+      .from("products")
+      .select("quantity, expiry_date, exp_date")
+      .eq("id", productId)
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    if (!data) return 0;
+
+    const expiry =
+      (data.expiry_date as string | null) ?? (data.exp_date as string | null);
+    if (productExpiryPassed(expiry, today)) return 0;
+    return Number(data.quantity ?? 0);
+  }
+
   const { data: batches, error } = await supabase
     .from("product_batches")
     .select("quantity_remaining")
@@ -32,6 +58,38 @@ export async function deductStockFefo(
   quantity: number,
   referenceNo: string
 ): Promise<FefoAllocation[]> {
+  if (await isFlatRegister(supabase)) {
+    const { data, error } = await supabase
+      .from("products")
+      .select("id, quantity")
+      .eq("id", productId)
+      .single();
+
+    if (error) throw new Error(error.message);
+
+    const available = Number(data.quantity ?? 0);
+    if (available < quantity) {
+      throw new Error(`Insufficient stock: only ${available} available`);
+    }
+
+    const { error: updateError } = await supabase
+      .from("products")
+      .update({ quantity: available - quantity })
+      .eq("id", productId);
+
+    if (updateError) throw new Error(updateError.message);
+
+    void supabase.from("inventory_transactions").insert({
+      product_id: productId,
+      batch_id: productId,
+      transaction_type: "stock_out",
+      quantity,
+      reference_no: referenceNo,
+    });
+
+    return [{ batch_id: productId, quantity }];
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   const { data: batches, error } = await supabase
     .from("product_batches")

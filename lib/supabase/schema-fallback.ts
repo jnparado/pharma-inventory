@@ -41,13 +41,36 @@ export const SALE_DETAIL_SELECTS = [
 ] as const;
 
 export const PURCHASE_ORDER_SELECTS = [
-  "*, suppliers(company_name), purchase_order_items(*, products(product_name, sku, unit))",
+  "*, suppliers(company_name), purchase_order_items(*, products(product_name, sku, unit, selling_price, selling_price_retail, cost))",
+  "*, suppliers(company_name), purchase_order_items(*, products(product_name, unit, selling_price_retail, cost))",
+  "*, suppliers(company_name), purchase_order_items(*, products(product_name, selling_price_retail, cost))",
   "*, suppliers(company_name), purchase_order_items(*, products(product_name, unit))",
   "*, suppliers(company_name), purchase_order_items(*, products(product_name))",
   "*, suppliers(company_name), purchase_order_items(*)",
   "*, purchase_order_items(*, products(product_name))",
   "*",
 ] as const;
+
+export const PO_CONVERT_SELECTS = [
+  "id, po_number, status, supplier_id, purchase_order_items(id, product_id, quantity, unit_cost, products(product_name, selling_price, selling_price_retail, cost))",
+  "id, po_number, status, supplier_id, purchase_order_items(id, product_id, quantity, unit_cost, products(product_name, selling_price_retail, cost))",
+  "id, po_number, status, supplier_id, purchase_order_items(id, product_id, quantity, unit_cost, products(product_name, cost))",
+  "id, po_number, status, supplier_id, purchase_order_items(id, product_id, quantity, unit_cost, products(product_name))",
+  "id, po_number, status, supplier_id, purchase_order_items(id, product_id, quantity, unit_cost)",
+] as const;
+
+export function productSellingPrice(
+  product: Record<string, unknown> | null | undefined
+): number {
+  if (!product) return 0;
+  return Number(
+    product.selling_price ??
+      product.selling_price_retail ??
+      product.price ??
+      product.cost ??
+      0
+  );
+}
 
 export function authCookieOptions() {
   return {

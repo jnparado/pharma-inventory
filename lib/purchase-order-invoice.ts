@@ -1,26 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { deductStockFefo, getAvailableStock } from "@/lib/pos";
 import { issueReceiptForSale, loadSalesByInvoiceNumbers } from "@/lib/receipt";
+import {
+  isSchemaError,
+  PO_CONVERT_SELECTS,
+  productSellingPrice,
+} from "@/lib/supabase/schema-fallback";
 
 export function salesInvoiceNumberForPo(poNumber: string): string {
   return `SI-${poNumber}`;
 }
 
-function productRow(
-  products:
-    | { selling_price: number; product_name?: string }
-    | { selling_price: number; product_name?: string }[]
-    | null
-    | undefined
-) {
-  if (!products) return null;
-  return Array.isArray(products) ? products[0] : products;
-}
-
-function productSellingPrice(
-  products: { selling_price: number } | { selling_price: number }[] | null | undefined
-): number {
-  return Number(productRow(products)?.selling_price ?? 0);
+function productRow(value: unknown) {
+  if (!value) return null;
+  return (Array.isArray(value) ? value[0] : value) as Record<string, unknown>;
 }
 
 type PoLine = {
@@ -40,6 +33,23 @@ type ConvertResult =
       alreadyExists: boolean;
     }
   | { ok: false; error: string };
+
+async function loadPurchaseOrderForConvert(
+  supabase: SupabaseClient,
+  purchaseOrderId: string
+) {
+  for (const select of PO_CONVERT_SELECTS) {
+    const { data, error } = await supabase
+      .from("purchase_orders")
+      .select(select)
+      .eq("id", purchaseOrderId)
+      .single();
+
+    if (!error && data) return data;
+    if (error && !isSchemaError(error.message)) break;
+  }
+  return null;
+}
 
 async function assertStockForLines(
   supabase: SupabaseClient,
@@ -63,24 +73,25 @@ export async function convertPurchaseOrderToSalesInvoice(
   supabase: SupabaseClient,
   purchaseOrderId: string
 ): Promise<ConvertResult> {
-  const { data: po, error: poError } = await supabase
-    .from("purchase_orders")
-    .select(
-      "id, po_number, status, supplier_id, purchase_order_items(id, product_id, quantity, unit_cost, products(product_name, selling_price))"
-    )
-    .eq("id", purchaseOrderId)
-    .single();
+  const po = await loadPurchaseOrderForConvert(supabase, purchaseOrderId);
 
-  if (poError || !po) {
+  if (!po) {
     return { ok: false, error: "Purchase order not found" };
   }
 
-  const items = po.purchase_order_items ?? [];
+  const items = (po.purchase_order_items ?? []) as Array<{
+    id: string;
+    product_id: string | null;
+    quantity: number;
+    unit_cost: number | null;
+    products: unknown;
+  }>;
+
   if (items.length === 0) {
     return { ok: false, error: "Purchase order has no line items" };
   }
 
-  const invoiceNumber = salesInvoiceNumberForPo(po.po_number);
+  const invoiceNumber = salesInvoiceNumberForPo(po.po_number as string);
 
   const { data: existing } = await supabase
     .from("sales")
@@ -114,12 +125,12 @@ export async function convertPurchaseOrderToSalesInvoice(
   const lines: PoLine[] = items.map((item) => {
     const product = productRow(item.products);
     const unitPrice =
-      productSellingPrice(item.products) || Number(item.unit_cost ?? 0);
+      productSellingPrice(product) || Number(item.unit_cost ?? 0);
     const subtotal = item.quantity * unitPrice;
     total += subtotal;
     return {
       product_id: item.product_id,
-      product_name: product?.product_name ?? "Product",
+      product_name: String(product?.product_name ?? "Product"),
       quantity: item.quantity,
       unit_price: unitPrice,
       subtotal,
