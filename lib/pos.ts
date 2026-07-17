@@ -1,10 +1,62 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isFlatRegister } from "@/lib/products-db";
+import { isSchemaError } from "@/lib/supabase/schema-fallback";
 
 export type StockAllocation = {
   batch_id: string;
   quantity: number;
 };
+
+const FLAT_PRODUCT_SELECTS = [
+  "id, quantity, exp_date",
+  "id, quantity, expiry_date",
+  "id, quantity, expiry_date, exp_date",
+  "id, quantity",
+] as const;
+
+type FlatProductRow = {
+  id: string;
+  quantity: number | null;
+  expiry: string | null;
+};
+
+function readExpiry(row: Record<string, unknown>): string | null {
+  const expiry =
+    (row.exp_date as string | null | undefined) ??
+    (row.expiry_date as string | null | undefined);
+  return expiry ? String(expiry).slice(0, 10) : null;
+}
+
+async function loadFlatProductRow(
+  supabase: SupabaseClient,
+  productId: string,
+  mode: "single" | "maybe" = "single"
+): Promise<FlatProductRow | null> {
+  let lastError = "Product not found";
+
+  for (const select of FLAT_PRODUCT_SELECTS) {
+    const query = supabase.from("products").select(select).eq("id", productId);
+    const result =
+      mode === "maybe" ? await query.maybeSingle() : await query.single();
+
+    if (!result.error && result.data) {
+      const row = result.data as unknown as Record<string, unknown>;
+      return {
+        id: String(row.id),
+        quantity: Number(row.quantity ?? 0),
+        expiry: readExpiry(row),
+      };
+    }
+
+    lastError = result.error?.message ?? lastError;
+    if (result.error && !isSchemaError(result.error.message)) {
+      throw new Error(result.error.message);
+    }
+  }
+
+  if (mode === "maybe") return null;
+  throw new Error(lastError);
+}
 
 function productExpiryPassed(
   expiry: string | null | undefined,
@@ -22,19 +74,11 @@ export async function getAvailableStock(
   const today = new Date().toISOString().slice(0, 10);
 
   if (await isFlatRegister(supabase)) {
-    const { data, error } = await supabase
-      .from("products")
-      .select("quantity, expiry_date, exp_date")
-      .eq("id", productId)
-      .maybeSingle();
+    const row = await loadFlatProductRow(supabase, productId, "maybe");
+    if (!row) return 0;
 
-    if (error) throw new Error(error.message);
-    if (!data) return 0;
-
-    const expiry =
-      (data.expiry_date as string | null) ?? (data.exp_date as string | null);
-    if (productExpiryPassed(expiry, today)) return 0;
-    return Number(data.quantity ?? 0);
+    if (productExpiryPassed(row.expiry, today)) return 0;
+    return row.quantity ?? 0;
   }
 
   const { data: batches, error } = await supabase
@@ -59,22 +103,15 @@ export async function deductStockFifo(
   referenceNo: string
 ): Promise<StockAllocation[]> {
   if (await isFlatRegister(supabase)) {
-    const { data, error } = await supabase
-      .from("products")
-      .select("id, quantity, expiry_date, exp_date")
-      .eq("id", productId)
-      .single();
-
-    if (error) throw new Error(error.message);
+    const row = await loadFlatProductRow(supabase, productId, "single");
+    if (!row) throw new Error("Product not found");
 
     const today = new Date().toISOString().slice(0, 10);
-    const expiry =
-      (data.expiry_date as string | null) ?? (data.exp_date as string | null);
-    if (productExpiryPassed(expiry, today)) {
+    if (productExpiryPassed(row.expiry, today)) {
       throw new Error("This product batch has expired and cannot be dispensed");
     }
 
-    const available = Number(data.quantity ?? 0);
+    const available = row.quantity ?? 0;
     if (available < quantity) {
       throw new Error(`Insufficient stock: only ${available} available`);
     }

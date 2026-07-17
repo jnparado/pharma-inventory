@@ -134,9 +134,10 @@ export type PurchaseOrder = {
   supplier_id: string | null;
   po_number: string;
   status: string | null;
+  notes?: string | null;
   ordered_by: string | null;
   created_at: string | null;
-  suppliers?: Pick<Supplier, "company_name"> | null;
+  suppliers?: Pick<Supplier, "company_name" | "contact_person" | "phone" | "email" | "address"> | null;
   purchase_order_items?: PurchaseOrderItem[];
 };
 

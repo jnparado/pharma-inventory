@@ -41,7 +41,10 @@ export const SALE_DETAIL_SELECTS = [
 ] as const;
 
 export const PURCHASE_ORDER_SELECTS = [
-  "*, suppliers(company_name), purchase_order_items(*, products(product_name, sku, unit, selling_price, selling_price_retail, cost))",
+  "*, suppliers(company_name, contact_person, phone, email, address), purchase_order_items(*, products(product_name, sku, unit, selling_price, selling_price_retail, cost))",
+  "*, suppliers(company_name, contact_person, phone, email, address), purchase_order_items(*, products(product_name, unit, selling_price_retail, cost))",
+  "*, suppliers(company_name, address), purchase_order_items(*, products(product_name, selling_price_retail, cost))",
+  "*, suppliers(company_name), purchase_order_items(*, products(product_name, unit, selling_price, selling_price_retail, cost))",
   "*, suppliers(company_name), purchase_order_items(*, products(product_name, unit, selling_price_retail, cost))",
   "*, suppliers(company_name), purchase_order_items(*, products(product_name, selling_price_retail, cost))",
   "*, suppliers(company_name), purchase_order_items(*, products(product_name, unit))",

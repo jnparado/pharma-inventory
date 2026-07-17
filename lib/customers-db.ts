@@ -16,6 +16,22 @@ function missingColumn(message: string, column: string): boolean {
   );
 }
 
+function readAddress(row: Record<string, unknown>): string | null {
+  const candidates = [
+    row.address,
+    row.mailing_address,
+    row.street_address,
+    row.customer_address,
+    row.location,
+  ];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
 /** Map DB row variants (e.g. name vs full_name) to app Customer type. */
 export function normalizeCustomer(row: Record<string, unknown>): Customer {
   return {
@@ -26,7 +42,7 @@ export function normalizeCustomer(row: Record<string, unknown>): Customer {
       null,
     email: (row.email as string | null | undefined) ?? null,
     phone: (row.phone as string | null | undefined) ?? null,
-    address: (row.address as string | null | undefined) ?? null,
+    address: readAddress(row),
     created_at: (row.created_at as string | null | undefined) ?? null,
   };
 }
@@ -50,14 +66,39 @@ function rowForShape(shape: RowShape, input: CustomerInput) {
   }
 }
 
-const SHAPES: RowShape[] = ["full", "no_address", "name_full", "name_only"];
+const SHAPES: RowShape[] = ["full", "name_full", "no_address", "name_only"];
+
+const ADDRESS_COLUMNS = [
+  "address",
+  "mailing_address",
+  "street_address",
+  "customer_address",
+] as const;
+
+async function patchAddress(
+  supabase: SupabaseClient,
+  id: string,
+  address: string | null
+): Promise<void> {
+  if (!address?.trim()) return;
+
+  for (const column of ADDRESS_COLUMNS) {
+    const { error } = await supabase
+      .from("customers")
+      .update({ [column]: address.trim() })
+      .eq("id", id);
+
+    if (!error) return;
+    if (!missingColumn(error.message, column)) return;
+  }
+}
 
 async function tryWrite(
   supabase: SupabaseClient,
   mode: "insert" | "update",
   input: CustomerInput,
   id?: string
-): Promise<{ error: string | null; shape?: RowShape }> {
+): Promise<{ error: string | null; id?: string; shape?: RowShape }> {
   const cached = mode === "insert" ? cachedInsertShape : cachedUpdateShape;
   const order = cached
     ? [cached, ...SHAPES.filter((shape) => shape !== cached)]
@@ -68,22 +109,31 @@ async function tryWrite(
   for (const shape of order) {
     const row = rowForShape(shape, input);
     const payload = row as unknown as Record<string, string | null>;
-    const { error } =
+    const result =
       mode === "insert"
-        ? await supabase.from("customers").insert(payload)
-        : await supabase.from("customers").update(payload).eq("id", id!);
+        ? await supabase.from("customers").insert(payload).select("id").single()
+        : await supabase
+            .from("customers")
+            .update(payload)
+            .eq("id", id!)
+            .select("id")
+            .single();
 
-    if (!error) {
+    if (!result.error && result.data) {
       if (mode === "insert") cachedInsertShape = shape;
       else cachedUpdateShape = shape;
-      return { error: null, shape };
+
+      const customerId = String(result.data.id);
+      await patchAddress(supabase, customerId, input.address);
+
+      return { error: null, id: customerId, shape };
     }
 
-    lastError = error.message;
+    lastError = result.error?.message ?? lastError;
     const isSchemaError = Object.keys(row).some((key) =>
-      missingColumn(error.message, key)
+      missingColumn(result.error?.message ?? "", key)
     );
-    if (!isSchemaError) return { error: error.message };
+    if (!isSchemaError) return { error: result.error?.message ?? lastError };
   }
 
   return { error: lastError };

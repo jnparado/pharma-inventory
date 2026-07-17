@@ -214,7 +214,9 @@ export default async function CustomersPage({
                     </td>
                     <td className="py-3">{c.phone ?? "—"}</td>
                     <td className="py-3">{c.email ?? "—"}</td>
-                    <td className="py-3 text-slate-500">{c.address ?? "—"}</td>
+                    <td className="py-3 max-w-xs whitespace-pre-wrap text-slate-500">
+                      {c.address ?? "—"}
+                    </td>
                     <td className="py-3 text-slate-500">
                       {c.created_at ? formatDateTime(c.created_at) : "—"}
                     </td>

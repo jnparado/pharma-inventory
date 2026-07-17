@@ -1,9 +1,20 @@
 import Link from "next/link";
-import { generatePurchaseOrders, updateOrderStatus } from "@/app/actions";
-import { getPurchaseOrders, isSupabaseConfigured } from "@/lib/data";
+import { updateOrderStatus } from "@/app/actions";
+import {
+  PurchaseOrderDialog,
+  type PoProductOption,
+} from "@/components/purchase-order-dialog";
+import {
+  getProductInventoryLines,
+  getPurchaseOrders,
+  getSuppliers,
+  isSupabaseConfigured,
+} from "@/lib/data";
 import { getSalesInvoicesForPurchaseOrders } from "@/lib/purchase-order-invoice";
+import { canManageRecords } from "@/lib/permissions";
 import { displayReceiptNumber } from "@/lib/receipt";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getActiveUser } from "@/lib/user-session";
 import type { PurchaseOrder } from "@/lib/types";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import {
@@ -27,13 +38,33 @@ export default async function OrdersPage({
   if (!isSupabaseConfigured()) {
     return (
       <>
-        <PageHeader title="Automated Supplier Ordering" />
+        <PageHeader title="Purchase Orders" />
         <SetupNotice />
       </>
     );
   }
 
-  const orders = (await getPurchaseOrders()) as PurchaseOrder[];
+  const [orders, suppliers, inventory, activeUser] = await Promise.all([
+    getPurchaseOrders() as Promise<PurchaseOrder[]>,
+    getSuppliers(),
+    getProductInventoryLines(),
+    getActiveUser(),
+  ]);
+
+  const isAdmin = canManageRecords(activeUser);
+
+  const poProducts: PoProductOption[] = inventory.map((line) => ({
+    id: line.product_id,
+    product_name: line.product_name,
+    unit: line.unit ?? "pcs",
+    unit_cost:
+      line.cost && line.cost > 0
+        ? line.cost
+        : Math.round(line.selling_price_retail * 0.6 * 100) / 100,
+    quantity_on_hand: line.quantity,
+    reorder_level: 10,
+  }));
+
   const supabase = createAdminClient();
   let invoiceMap = new Map<
     string,
@@ -56,26 +87,30 @@ export default async function OrdersPage({
   return (
     <>
       <PageHeader
-        title="Automated Supplier Ordering"
-        description="Approve purchase orders to generate a Sales Invoice, convert to Receipt (OR), and deduct inventory."
+        title="Purchase Orders"
+        description="Create POs for suppliers, print them, then approve to generate Sales Invoice and Receipt."
       />
       <FlashMessage success={success} error={error} />
 
-      <Card title="Auto reorder">
+      <Card title="Create purchase order">
         <p className="mb-4 text-sm text-slate-600">
-          Creates a purchase order for all products at or below their reorder
-          level. Assigns your first supplier if available.
+          Click <strong>Generate PO</strong> to open a form where you can pick a
+          supplier, add products and quantities, or auto-reorder low-stock items.
+          After saving, you can print the PO for your supplier.
         </p>
-        <form action={generatePurchaseOrders}>
-          <button type="submit" className={buttonClass}>
-            Generate purchase orders
-          </button>
-        </form>
+        <PurchaseOrderDialog
+          suppliers={suppliers.map((s) => ({
+            id: s.id,
+            company_name: s.company_name,
+          }))}
+          products={poProducts}
+          isAdmin={isAdmin}
+        />
       </Card>
 
       <Card title={`Purchase orders (${orders.length})`} className="mt-6">
         {orders.length === 0 ? (
-          <EmptyState message="No purchase orders yet. Click generate when stock runs low." />
+          <EmptyState message="No purchase orders yet. Click Generate PO to create one." />
         ) : (
           <div className="space-y-6">
             {orders.map((po) => {
@@ -125,17 +160,25 @@ export default async function OrdersPage({
                         </div>
                       )}
                     </div>
-                    <Badge
-                      tone={
-                        po.status === "approved" || po.status === "delivered"
-                          ? "success"
-                          : po.status === "pending"
-                            ? "warning"
-                            : "default"
-                      }
-                    >
-                      {po.status ?? "draft"}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/orders/${po.id}`}
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        View &amp; print
+                      </Link>
+                      <Badge
+                        tone={
+                          po.status === "approved" || po.status === "delivered"
+                            ? "success"
+                            : po.status === "pending"
+                              ? "warning"
+                              : "default"
+                        }
+                      >
+                        {po.status ?? "draft"}
+                      </Badge>
+                    </div>
                   </div>
 
                   {po.purchase_order_items && po.purchase_order_items.length > 0 && (
@@ -177,7 +220,7 @@ export default async function OrdersPage({
                     </TableScroll>
                   )}
 
-                  {po.status === "pending" && (
+                  {isAdmin && po.status === "pending" && (
                     <div className="mt-3 flex flex-wrap gap-3">
                       <form action={updateOrderStatus}>
                         <input type="hidden" name="id" value={po.id} />
@@ -199,7 +242,7 @@ export default async function OrdersPage({
                     </div>
                   )}
 
-                  {po.status === "approved" && !invoice && (
+                  {isAdmin && po.status === "approved" && !invoice && (
                     <form action={updateOrderStatus} className="mt-3">
                       <input type="hidden" name="id" value={po.id} />
                       <input type="hidden" name="status" value="approved" />

@@ -452,6 +452,25 @@ export async function getPurchaseOrders() {
   return [];
 }
 
+export async function getPurchaseOrderById(
+  id: string
+): Promise<PurchaseOrder | null> {
+  const supabase = createAdminClient();
+
+  for (const select of PURCHASE_ORDER_SELECTS) {
+    const { data, error } = await supabase
+      .from("purchase_orders")
+      .select(select)
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!error && data) return data as unknown as PurchaseOrder;
+    if (error && !isSchemaError(error.message)) break;
+  }
+
+  return null;
+}
+
 export async function getPrescriptions() {
   const supabase = createAdminClient();
   const { data, error } = await supabase

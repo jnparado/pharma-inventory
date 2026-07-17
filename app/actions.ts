@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-guard";
 import { insertCustomer, updateCustomerRow } from "@/lib/customers-db";
 import { convertPurchaseOrderToSalesInvoice } from "@/lib/purchase-order-invoice";
+import { autoGeneratePurchaseOrder } from "@/lib/purchase-orders";
 import { deductStockFifo } from "@/lib/pos";
 import { revalidateInventory, revalidateProductsPage } from "@/lib/revalidate";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,12 +12,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   deleteProductEntry,
   insertProductEntry,
-  isFlatRegister,
   parseProductEntryBody,
   updateProductEntry,
   validateProductEntry,
 } from "@/lib/products-db";
-import { productSellingPrice } from "@/lib/supabase/schema-fallback";
 
 export async function createProduct(formData: FormData) {
   await requireAdmin("/products");
@@ -288,93 +287,21 @@ export async function updateTransferStatus(formData: FormData) {
 export async function generatePurchaseOrders() {
   await requireAdmin("/orders");
   const supabase = createAdminClient();
-  const flat = await isFlatRegister(supabase);
-
-  const productsRes = await supabase
-    .from("products")
-    .select("*")
-    .order("product_name");
-
-  if (productsRes.error) {
-    redirect(
-      `/orders?error=${encodeURIComponent(productsRes.error.message)}`
-    );
-  }
-
-  const products = (productsRes.data ?? []) as Record<string, unknown>[];
-  const stock = new Map<string, number>();
-
-  if (flat) {
-    for (const p of products) {
-      stock.set(String(p.id), Number(p.quantity ?? 0));
-    }
-  } else {
-    const batchesRes = await supabase
-      .from("product_batches")
-      .select("product_id, quantity_remaining");
-
-    if (batchesRes.error) {
-      redirect("/orders?error=Failed to load inventory data");
-    }
-
-    for (const b of batchesRes.data ?? []) {
-      if (!b.product_id) continue;
-      stock.set(
-        b.product_id,
-        (stock.get(b.product_id) ?? 0) + (b.quantity_remaining ?? 0)
-      );
-    }
-  }
-
-  const lowStock = products.filter((p) => {
-    const id = String(p.id);
-    const qty = stock.get(id) ?? 0;
-    const reorder = Number(p.reorder_level ?? 10);
-    return qty <= reorder;
-  });
-
-  if (lowStock.length === 0) {
-    redirect("/orders?error=No products need reordering");
-  }
 
   const suppliersRes = await supabase.from("suppliers").select("id").limit(1);
   const supplierId = suppliersRes.data?.[0]?.id ?? null;
-  const poNumber = `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
 
-  const { data: po, error: poError } = await supabase
-    .from("purchase_orders")
-    .insert({
-      supplier_id: supplierId,
-      po_number: poNumber,
-      status: "pending",
-    })
-    .select("id")
-    .single();
-
-  if (poError) redirect(`/orders?error=${encodeURIComponent(poError.message)}`);
-
-  const items = lowStock.map((p) => {
-    const id = String(p.id);
-    const current = stock.get(id) ?? 0;
-    const reorder = Number(p.reorder_level ?? 10);
-    const retail = productSellingPrice(p);
-    const cost = Number(p.cost ?? p.purchase_price ?? retail * 0.6);
-    return {
-      purchase_order_id: po.id,
-      product_id: id,
-      quantity: Math.max(reorder * 2 - current, reorder),
-      unit_cost: cost > 0 ? cost : retail * 0.6,
-    };
-  });
-
-  const { error: itemsError } = await supabase
-    .from("purchase_order_items")
-    .insert(items);
-  if (itemsError)
-    redirect(`/orders?error=${encodeURIComponent(itemsError.message)}`);
+  const result = await autoGeneratePurchaseOrder(supabase, supplierId);
+  if (!result.ok) {
+    redirect(`/orders?error=${encodeURIComponent(result.error)}`);
+  }
 
   revalidateInventory("orders");
-  redirect(`/orders?success=Auto PO ${poNumber} created (${items.length} items)`);
+  redirect(
+    `/orders/${result.id}?success=${encodeURIComponent(
+      `Auto PO ${result.po_number} created (${result.itemCount} items)`
+    )}`
+  );
 }
 
 export async function updateOrderStatus(formData: FormData) {
