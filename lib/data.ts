@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { normalizeCustomer } from "@/lib/customers-db";
-import { fetchProductInventoryRows } from "@/lib/products-db";
+import { fetchProductInventoryRows, isFlatRegister } from "@/lib/products-db";
 import { isSupabaseConfigured } from "@/lib/env";
 import { getSalesMetrics } from "@/lib/sales-metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -224,12 +224,69 @@ export const getUserByEmail = cache(async (email: string): Promise<User | null> 
   return data;
 });
 
+function mapFlatProductToBatch(
+  row: Record<string, unknown>
+): BatchWithProduct | null {
+  const expiry =
+    (row.expiry_date as string | null) ?? (row.exp_date as string | null);
+  if (!expiry) return null;
+
+  const qty = Number(row.quantity ?? 0);
+  return {
+    id: String(row.id),
+    product_id: String(row.id),
+    supplier_id: null,
+    batch_number: String(row.lot_number ?? row.batch_number ?? "—"),
+    manufacture_date: null,
+    expiry_date: expiry,
+    purchase_price: row.cost != null ? Number(row.cost) : null,
+    quantity_received: qty,
+    quantity_remaining: qty,
+    created_at: (row.created_at as string | null) ?? null,
+    products: normalizeJoinedProduct(row),
+    suppliers: null,
+  };
+}
+
+async function getBatchesFromFlatProducts(
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<BatchWithProduct[]> {
+  const { data, error } = await supabase.from("products").select("*");
+  if (error) return [];
+
+  return (data as Record<string, unknown>[])
+    .map(mapFlatProductToBatch)
+    .filter((b): b is BatchWithProduct => b !== null)
+    .sort((a, b) =>
+      (a.expiry_date ?? "") < (b.expiry_date ?? "") ? -1 : 1
+    );
+}
+
+async function getBatchesFromProductBatchesTable(
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<BatchWithProduct[] | null> {
+  for (const select of BATCH_WITH_PRODUCT_SELECTS) {
+    const { data, error } = await supabase
+      .from("product_batches")
+      .select(select)
+      .order("expiry_date", { ascending: true, nullsFirst: false });
+
+    if (!error) return normalizeBatchRows(data ?? []);
+    if (!isSchemaError(error.message)) return null;
+  }
+  return null;
+}
+
 export async function getExpiringBatches(
   limit: number
 ): Promise<BatchWithProduct[]> {
   const supabase = createAdminClient();
-  const batchLimit = Math.max(limit * 4, 24);
 
+  if (await isFlatRegister(supabase)) {
+    return filterExpiringBatches(await getBatchesFromFlatProducts(supabase), limit);
+  }
+
+  const batchLimit = Math.max(limit * 4, 24);
   for (const select of BATCH_WITH_PRODUCT_SELECTS) {
     const { data, error } = await supabase
       .from("product_batches")
@@ -240,95 +297,50 @@ export async function getExpiringBatches(
       .limit(batchLimit);
 
     if (!error) {
-      return normalizeBatchRows(data ?? [])
-        .filter((b) => b.expiry_date && expiryStatus(b.expiry_date) !== "ok")
-        .slice(0, limit);
+      const rows = normalizeBatchRows(data ?? []);
+      if (rows.length > 0) {
+        return filterExpiringBatches(rows, limit);
+      }
+      break;
     }
 
     if (!isSchemaError(error.message)) break;
   }
 
-  return getExpiringFromFlatProducts(supabase, limit);
+  return filterExpiringBatches(await getBatchesFromFlatProducts(supabase), limit);
 }
 
-async function getExpiringFromFlatProducts(
-  supabase: ReturnType<typeof createAdminClient>,
-  limit: number
-): Promise<BatchWithProduct[]> {
-  const { data, error } = await supabase.from("products").select("*");
-  if (error) return [];
-
-  return (data as Record<string, unknown>[])
-    .map((row) => {
-      const expiry =
-        (row.expiry_date as string | null) ?? (row.exp_date as string | null);
-      const qty = Number(row.quantity ?? 0);
-      if (!expiry || qty <= 0) return null;
-
-      const product = normalizeJoinedProduct(row);
-      const batch: BatchWithProduct = {
-        id: String(row.id),
-        product_id: String(row.id),
-        supplier_id: null,
-        batch_number: String(row.lot_number ?? row.batch_number ?? "—"),
-        manufacture_date: null,
-        expiry_date: expiry,
-        purchase_price: row.cost != null ? Number(row.cost) : null,
-        quantity_received: qty,
-        quantity_remaining: qty,
-        created_at: (row.created_at as string | null) ?? null,
-        products: product,
-        suppliers: null,
-      };
-      return batch;
-    })
-    .filter((b): b is BatchWithProduct => b !== null)
-    .filter((b) => b.expiry_date && expiryStatus(b.expiry_date) !== "ok")
+function filterExpiringBatches(
+  batches: BatchWithProduct[],
+  limit?: number
+): BatchWithProduct[] {
+  const expiring = batches
+    .filter(
+      (b) =>
+        (b.quantity_remaining ?? 0) > 0 &&
+        b.expiry_date &&
+        expiryStatus(b.expiry_date) !== "ok"
+    )
     .sort((a, b) =>
       (a.expiry_date ?? "") < (b.expiry_date ?? "") ? -1 : 1
-    )
-    .slice(0, limit);
+    );
+
+  return limit ? expiring.slice(0, limit) : expiring;
 }
 
 export async function getBatches(): Promise<BatchWithProduct[]> {
   const supabase = createAdminClient();
 
-  for (const select of BATCH_WITH_PRODUCT_SELECTS) {
-    const { data, error } = await supabase
-      .from("product_batches")
-      .select(select)
-      .order("expiry_date", { ascending: true, nullsFirst: false });
-
-    if (!error) return normalizeBatchRows(data ?? []);
-    if (!isSchemaError(error.message)) break;
+  if (await isFlatRegister(supabase)) {
+    return getBatchesFromFlatProducts(supabase);
   }
 
-  const { data, error } = await supabase.from("products").select("*");
-  if (error) return [];
+  const fromBatches = await getBatchesFromProductBatchesTable(supabase);
+  if (fromBatches && fromBatches.length > 0) {
+    return fromBatches;
+  }
 
-  return (data as Record<string, unknown>[])
-    .map((row) => {
-      const expiry =
-        (row.expiry_date as string | null) ?? (row.exp_date as string | null);
-      const qty = Number(row.quantity ?? 0);
-      return {
-        id: String(row.id),
-        product_id: String(row.id),
-        supplier_id: null,
-        batch_number: String(row.lot_number ?? row.batch_number ?? "—"),
-        manufacture_date: null,
-        expiry_date: expiry,
-        purchase_price: row.cost != null ? Number(row.cost) : null,
-        quantity_received: qty,
-        quantity_remaining: qty,
-        created_at: (row.created_at as string | null) ?? null,
-        products: normalizeJoinedProduct(row),
-        suppliers: null,
-      } satisfies BatchWithProduct;
-    })
-    .sort((a, b) =>
-      (a.expiry_date ?? "") < (b.expiry_date ?? "") ? -1 : 1
-    );
+  return getBatchesFromFlatProducts(supabase);
 }
 
 export async function getTransactions(

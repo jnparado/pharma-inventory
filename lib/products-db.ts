@@ -137,7 +137,7 @@ async function getProductColumns(
   return cachedProductColumns;
 }
 
-async function isFlatRegister(supabase: SupabaseClient): Promise<boolean> {
+export async function isFlatRegister(supabase: SupabaseClient): Promise<boolean> {
   if (cachedFlatRegister !== null) return cachedFlatRegister;
 
   const [lotProbe, qtyProbe] = await Promise.all([
