@@ -82,7 +82,7 @@ export function ScanClient() {
               {result.batches && result.batches.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase text-slate-400">
-                    Batch verification (FEFO order)
+                    Batch verification (FIFO order)
                   </p>
                   <ul className="space-y-1 text-sm">
                     {result.batches.map((b) => (
@@ -117,7 +117,7 @@ export function ScanClient() {
                   />
                 </div>
                 <button type="submit" className={buttonClass}>
-                  Dispense (FEFO)
+                  Dispense (FIFO)
                 </button>
               </form>
 

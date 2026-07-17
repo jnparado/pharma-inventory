@@ -1,10 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ProductInventoryLine } from "@/lib/types";
+import { toDateInputValue } from "@/lib/utils";
 
 export type ProductEntryInput = {
   entry_date: string;
   product_name: string;
   brand: string;
+  unit: string;
+  supplier_id: string | null;
+  rack_location: string | null;
   quantity: number;
   lot_number: string;
   expiry_date: string | null;
@@ -30,6 +34,11 @@ const REGISTER_COLUMN_CANDIDATES = [
   "lot_number",
   "brand",
   "brand_name",
+  "unit",
+  "supplier_id",
+  "supplier_name",
+  "rack_location",
+  "location",
   "quantity",
   "expiry_date",
   "exp_date",
@@ -68,11 +77,17 @@ function buildRegisterPayload(
   input: ProductEntryInput
 ): Record<string, string | number | null> {
   const brand = input.brand.trim() || null;
+  const unit = input.unit.trim() || "pcs";
+  const rack = input.rack_location?.trim() || null;
   return {
     product_name: input.product_name.trim(),
     lot_number: input.lot_number.trim(),
     brand,
     brand_name: brand,
+    unit,
+    supplier_id: input.supplier_id,
+    rack_location: rack,
+    location: rack,
     quantity: input.quantity,
     expiry_date: input.expiry_date,
     exp_date: input.expiry_date,
@@ -87,6 +102,12 @@ function buildRegisterPayload(
   };
 }
 
+function readSupplierName(row: Record<string, unknown>): string | null {
+  const joined = row.suppliers as { company_name?: string } | null | undefined;
+  const direct = row.supplier_name as string | null | undefined;
+  return direct?.trim() || joined?.company_name?.trim() || null;
+}
+
 function mapProductRow(r: Record<string, unknown>): ProductInventoryLine {
   const cost = r.cost ?? r.purchase_price;
   const retail = r.selling_price_retail ?? r.selling_price ?? r.price;
@@ -96,16 +117,27 @@ function mapProductRow(r: Record<string, unknown>): ProductInventoryLine {
     batch_id: String(r.id),
     product_id: String(r.id),
     entry_date:
-      (r.entry_date as string | null) ??
-      (r.received_date as string | null) ??
-      (r.created_at as string | null)?.toString().slice(0, 10) ??
-      null,
+      toDateInputValue(
+        (r.entry_date as string | null) ??
+          (r.received_date as string | null) ??
+          (r.created_at as string | null)?.toString().slice(0, 10) ??
+          null
+      ) || null,
     product_name: String(r.product_name ?? r.name ?? "Unknown"),
     brand: (r.brand as string | null) ?? (r.brand_name as string | null) ?? null,
+    unit: (r.unit as string | null) ?? "pcs",
+    supplier_id: (r.supplier_id as string | null) ?? null,
+    supplier_name: readSupplierName(r),
+    rack_location:
+      (r.rack_location as string | null) ??
+      (r.location as string | null) ??
+      null,
     quantity: Number(r.quantity ?? r.qty ?? 0),
     lot_number: String(r.lot_number ?? r.batch_number ?? "—"),
     expiry_date:
-      (r.expiry_date as string | null) ?? (r.exp_date as string | null) ?? null,
+      toDateInputValue(
+        (r.expiry_date as string | null) ?? (r.exp_date as string | null)
+      ) || null,
     cost: cost != null && cost !== "" ? Number(cost) : null,
     selling_price_ws: ws != null && ws !== "" ? Number(ws) : null,
     selling_price_retail: Number(retail ?? 0),
@@ -229,12 +261,16 @@ export function mapBatchRowToInventoryLine(row: BatchRow): ProductInventoryLine 
   return {
     batch_id: row.id,
     product_id: row.product_id ?? "",
-    entry_date: row.received_date ?? row.created_at?.slice(0, 10) ?? null,
+    entry_date: toDateInputValue(row.received_date ?? row.created_at?.slice(0, 10)) || null,
     product_name: product.product_name,
     brand: product.brand,
+    unit: "pcs",
+    supplier_id: null,
+    supplier_name: null,
+    rack_location: null,
     quantity: row.quantity_remaining ?? 0,
     lot_number: row.batch_number,
-    expiry_date: row.expiry_date,
+    expiry_date: toDateInputValue(row.expiry_date) || null,
     cost: row.purchase_price,
     selling_price_ws: product.selling_price_ws,
     selling_price_retail: product.selling_price_retail,
@@ -295,33 +331,40 @@ async function fetchFromProductsOnly(
   supabase: SupabaseClient,
   productId?: string
 ): Promise<ProductInventoryLine[]> {
-  const buildQuery = () => {
-    let query = supabase.from("products").select("*");
-    if (productId) query = query.eq("id", productId);
-    return query;
-  };
+  const selects = ["*, suppliers(company_name)", "*"] as const;
 
-  for (const orderCol of ["created_at", "id"] as const) {
-    const { data, error } = await buildQuery().order(orderCol, {
-      ascending: false,
-    });
+  for (const select of selects) {
+    const buildQuery = () => {
+      let query = supabase.from("products").select(select);
+      if (productId) query = query.eq("id", productId);
+      return query;
+    };
+
+    for (const orderCol of ["created_at", "id"] as const) {
+      const { data, error } = await buildQuery().order(orderCol, {
+        ascending: false,
+      });
+      if (!error) {
+        return (data ?? []).map((row) =>
+          mapProductRow(row as unknown as Record<string, unknown>)
+        );
+      }
+      if (!missingColumn(error.message, orderCol)) break;
+    }
+
+    const { data, error } = await buildQuery();
     if (!error) {
       return (data ?? []).map((row) =>
         mapProductRow(row as unknown as Record<string, unknown>)
       );
     }
-    if (!missingColumn(error.message, orderCol)) break;
+    if (!missingColumn(error.message, "suppliers")) {
+      console.error("Failed to load products:", error.message);
+      return [];
+    }
   }
 
-  const { data, error } = await buildQuery();
-  if (error) {
-    console.error("Failed to load products:", error.message);
-    return [];
-  }
-
-  return (data ?? []).map((row) =>
-    mapProductRow(row as unknown as Record<string, unknown>)
-  );
+  return [];
 }
 
 async function insertProductRow(
@@ -488,15 +531,21 @@ export async function deleteProductEntry(
 
 export function parseProductEntryBody(body: Record<string, unknown>) {
   const quantity = Number(body.quantity);
+  const supplierId = String(body.supplier_id ?? "").trim();
+  const rack = String(body.rack_location ?? "").trim();
+  const expiryRaw = String(body.expiry_date ?? "").trim();
   return {
     entry_date:
       String(body.entry_date ?? "").trim() ||
       new Date().toISOString().slice(0, 10),
     product_name: String(body.product_name ?? "").trim(),
     brand: String(body.brand ?? "").trim(),
+    unit: String(body.unit ?? "pcs").trim() || "pcs",
+    supplier_id: supplierId || null,
+    rack_location: rack || null,
     quantity,
     lot_number: String(body.lot_number ?? "").trim(),
-    expiry_date: String(body.expiry_date ?? "").trim() || null,
+    expiry_date: expiryRaw || null,
     cost: Number(body.cost ?? 0),
     selling_price_ws: Number(body.selling_price_ws ?? 0),
     selling_price_retail: Number(body.selling_price_retail ?? 0),

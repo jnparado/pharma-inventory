@@ -68,6 +68,9 @@ export function ProductInventoryTable({
               <th className="pb-2 pr-3 font-medium">Date</th>
               <th className="pb-2 pr-3 font-medium">Product name</th>
               <th className="pb-2 pr-3 font-medium">Brand</th>
+              <th className="pb-2 pr-3 font-medium">UOM</th>
+              <th className="pb-2 pr-3 font-medium">Supplier</th>
+              <th className="pb-2 pr-3 font-medium">Location</th>
               <th className="pb-2 pr-3 font-medium">Quantity</th>
               <th className="pb-2 pr-3 font-medium">Lot number</th>
               <th className="pb-2 pr-3 font-medium">Exp date</th>
@@ -88,6 +91,13 @@ export function ProductInventoryTable({
                 </td>
                 <td className="py-3 pr-3 text-slate-600">
                   {line.brand ?? "—"}
+                </td>
+                <td className="py-3 pr-3 text-slate-600">{line.unit ?? "pcs"}</td>
+                <td className="py-3 pr-3 text-slate-600">
+                  {line.supplier_name ?? "—"}
+                </td>
+                <td className="py-3 pr-3 text-slate-600">
+                  {line.rack_location ?? "—"}
                 </td>
                 <td className="py-3 pr-3">{line.quantity}</td>
                 <td className="py-3 pr-3 font-mono text-xs text-slate-500">

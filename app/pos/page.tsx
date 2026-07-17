@@ -20,7 +20,7 @@ export default async function PosPage() {
     <>
       <PageHeader
         title="Point of Sale"
-        description="Quick checkout for walk-in customers. Stock is deducted automatically using FEFO."
+        description="Quick checkout for walk-in customers. Stock is deducted automatically using FIFO."
       />
       <PosTerminal products={products} />
     </>

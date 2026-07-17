@@ -44,7 +44,7 @@ export default async function StockPage({
     <>
       <PageHeader
         title="Stock In / Out"
-        description="Receive new batches and dispense stock. Dispensing follows FEFO — the batch expiring soonest is deducted first."
+        description="Receive new batches and dispense stock. Dispensing follows FIFO — the oldest received batch is deducted first."
       />
       <FlashMessage success={success} error={error} />
 
@@ -209,11 +209,11 @@ export default async function StockPage({
             </div>
             <div>
               <button type="submit" className={buttonClass}>
-                Dispense stock (FEFO)
+                Dispense stock (FIFO)
               </button>
             </div>
             <p className="text-xs text-slate-400">
-              Expired batches are skipped automatically and never dispensed.
+              First In, First Out — oldest stock is dispensed first. Expired batches are skipped automatically.
             </p>
           </form>
         </Card>

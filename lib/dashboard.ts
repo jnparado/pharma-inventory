@@ -1,12 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  getExpiringBatches,
+  getProductInventoryLines,
   getProductsWithStock,
-  getPurchaseOrders,
 } from "@/lib/data";
 import { getSalesMetrics } from "@/lib/sales-metrics";
-import { formatCurrency } from "@/lib/utils";
-import type { BatchWithProduct, PurchaseOrder } from "@/lib/types";
+import { formatCurrency, expiryStatus } from "@/lib/utils";
+import type { DashboardInventoryRow } from "@/lib/types";
 
 const MONTHS = [
   "Jan",
@@ -23,15 +22,30 @@ const MONTHS = [
   "Dec",
 ];
 
+function toDashboardRow(line: Awaited<
+  ReturnType<typeof getProductInventoryLines>
+>[number]): DashboardInventoryRow {
+  return {
+    id: line.batch_id,
+    product_name: line.product_name,
+    supplier: line.supplier_name,
+    quantity: line.quantity,
+    expiry_date: line.expiry_date,
+    lot_number: line.lot_number,
+    selling_price_ws: line.selling_price_ws,
+    selling_price_retail: line.selling_price_retail,
+  };
+}
+
 function emptyDashboardData() {
   return {
     customerCount: 0,
     totalSales: 0,
     totalProfit: 0,
     outOfStock: 0,
-    expiringList: [] as BatchWithProduct[],
+    expiringList: [] as DashboardInventoryRow[],
     maxExpiringQty: 1,
-    recentOrders: [] as PurchaseOrder[],
+    recentOrders: [] as DashboardInventoryRow[],
     monthlySales: MONTHS.map((month) => ({ month, sales: 0 })),
     todayBreakdown: [
       { name: "Cash", value: 0, color: "#fbbf24" },
@@ -46,26 +60,37 @@ function emptyDashboardData() {
 export async function getDashboardData() {
   try {
     const supabase = createAdminClient();
-    const [products, metrics, orders, expiringList, customersRes] =
-      await Promise.all([
-        getProductsWithStock(),
-        getSalesMetrics(),
-        getPurchaseOrders(),
-        getExpiringBatches(6),
-        supabase.from("customers").select("id", { count: "exact", head: true }),
-      ]);
+    const [products, metrics, inventory, customersRes] = await Promise.all([
+      getProductsWithStock(),
+      getSalesMetrics(),
+      getProductInventoryLines(),
+      supabase.from("customers").select("id", { count: "exact", head: true }),
+    ]);
 
     const sales = metrics.sales;
     const summary = metrics.summary;
     const outOfStock = products.filter((p) => p.total_stock === 0).length;
     const customerCount = customersRes.error ? 0 : (customersRes.count ?? 0);
 
+    const expiringList = inventory
+      .filter(
+        (line) =>
+          line.quantity > 0 &&
+          line.expiry_date &&
+          expiryStatus(line.expiry_date) !== "ok"
+      )
+      .sort((a, b) =>
+        (a.expiry_date ?? "") < (b.expiry_date ?? "") ? -1 : 1
+      )
+      .slice(0, 6)
+      .map(toDashboardRow);
+
     const maxExpiringQty = Math.max(
-      ...expiringList.map((b) => b.quantity_remaining ?? 0),
+      ...expiringList.map((row) => row.quantity),
       1
     );
 
-    const recentOrders = (orders as PurchaseOrder[]).slice(0, 6);
+    const recentOrders = inventory.slice(0, 6).map(toDashboardRow);
 
     const monthlySales = MONTHS.map((month, i) => {
       const total = sales
@@ -135,5 +160,3 @@ export async function getDashboardData() {
     return emptyDashboardData();
   }
 }
-
-export type DashboardExpiringRow = BatchWithProduct;

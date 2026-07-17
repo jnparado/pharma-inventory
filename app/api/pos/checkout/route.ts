@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import { issueReceiptForSale } from "@/lib/receipt";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { deductStockFefo, generateInvoiceNumber } from "@/lib/pos";
+import { deductStockFifo, generateInvoiceNumber } from "@/lib/pos";
 
 type CartItem = {
   product_id: string;
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
     const allocationsByItem = await Promise.all(
       body.items.map((item) =>
-        deductStockFefo(
+        deductStockFifo(
           supabase,
           item.product_id,
           item.quantity,

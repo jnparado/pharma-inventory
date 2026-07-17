@@ -3,6 +3,7 @@ import { ProductInventoryTable } from "@/components/product-inventory-table";
 import {
   getProductInventoryLineByBatchId,
   getProductInventoryLines,
+  getSuppliers,
   isSupabaseConfigured,
 } from "@/lib/data";
 import { hasServiceRoleKey } from "@/lib/env";
@@ -34,14 +35,16 @@ export default async function ProductsPage({
   }
 
   let lines: Awaited<ReturnType<typeof getProductInventoryLines>> = [];
+  let suppliers: Awaited<ReturnType<typeof getSuppliers>> = [];
   let activeUser: Awaited<ReturnType<typeof getActiveUser>> = null;
   let editing: Awaited<ReturnType<typeof getProductInventoryLineByBatchId>> =
     null;
   let loadError = error ?? "";
 
   try {
-    [lines, activeUser, editing] = await Promise.all([
+    [lines, suppliers, activeUser, editing] = await Promise.all([
       getProductInventoryLines(),
+      getSuppliers(),
       getActiveUser(),
       edit ? getProductInventoryLineByBatchId(edit) : Promise.resolve(null),
     ]);
@@ -58,7 +61,7 @@ export default async function ProductsPage({
     <>
       <PageHeader
         title="Product"
-        description="Inventory register — date, product, brand, quantity, lot, expiry, cost, and wholesale/retail prices."
+        description="Inventory register — date, product, brand, UOM, supplier, location, quantity, lot, expiry, cost, and wholesale/retail prices."
       />
       <FlashMessage success={success} error={loadError || undefined} />
 
@@ -85,13 +88,14 @@ export default async function ProductsPage({
               product_id: editing.product_id,
             }}
             today={today}
+            suppliers={suppliers}
           />
         </Card>
       )}
 
       {isAdmin && !editing && (
         <Card title="Add product" className="mb-6">
-          <ProductEntryForm mode="create" today={today} />
+          <ProductEntryForm mode="create" today={today} suppliers={suppliers} />
         </Card>
       )}
 

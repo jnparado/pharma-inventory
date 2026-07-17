@@ -47,10 +47,25 @@ export type ProductInventoryLine = {
   entry_date: string | null;
   product_name: string;
   brand: string | null;
+  unit: string | null;
+  supplier_id: string | null;
+  supplier_name: string | null;
+  rack_location: string | null;
   quantity: number;
   lot_number: string;
   expiry_date: string | null;
   cost: number | null;
+  selling_price_ws: number | null;
+  selling_price_retail: number;
+};
+
+export type DashboardInventoryRow = {
+  id: string;
+  product_name: string;
+  supplier: string | null;
+  quantity: number;
+  expiry_date: string | null;
+  lot_number: string;
   selling_price_ws: number | null;
   selling_price_retail: number;
 };

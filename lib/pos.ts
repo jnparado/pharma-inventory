@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isFlatRegister } from "@/lib/products-db";
 
-export type FefoAllocation = {
+export type StockAllocation = {
   batch_id: string;
   quantity: number;
 };
@@ -11,10 +11,10 @@ function productExpiryPassed(
   today: string
 ): boolean {
   if (!expiry) return false;
-  return expiry < today;
+  return expiry.slice(0, 10) < today;
 }
 
-/** Non-expired stock available for a product (FEFO-eligible batches or flat quantity). */
+/** Non-expired stock available for a product (FIFO-eligible batches or flat quantity). */
 export async function getAvailableStock(
   supabase: SupabaseClient,
   productId: string
@@ -51,21 +51,28 @@ export async function getAvailableStock(
   );
 }
 
-/** Deduct stock using FEFO and log inventory transactions. Returns batch allocations. */
-export async function deductStockFefo(
+/** Deduct stock using FIFO (oldest received first) and log inventory transactions. */
+export async function deductStockFifo(
   supabase: SupabaseClient,
   productId: string,
   quantity: number,
   referenceNo: string
-): Promise<FefoAllocation[]> {
+): Promise<StockAllocation[]> {
   if (await isFlatRegister(supabase)) {
     const { data, error } = await supabase
       .from("products")
-      .select("id, quantity")
+      .select("id, quantity, expiry_date, exp_date")
       .eq("id", productId)
       .single();
 
     if (error) throw new Error(error.message);
+
+    const today = new Date().toISOString().slice(0, 10);
+    const expiry =
+      (data.expiry_date as string | null) ?? (data.exp_date as string | null);
+    if (productExpiryPassed(expiry, today)) {
+      throw new Error("This product batch has expired and cannot be dispensed");
+    }
 
     const available = Number(data.quantity ?? 0);
     if (available < quantity) {
@@ -91,17 +98,48 @@ export async function deductStockFefo(
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const { data: batches, error } = await supabase
-    .from("product_batches")
-    .select("id, quantity_remaining, expiry_date")
-    .eq("product_id", productId)
-    .gt("quantity_remaining", 0)
-    .or(`expiry_date.gte.${today},expiry_date.is.null`)
-    .order("expiry_date", { ascending: true, nullsFirst: false });
+  const orderAttempts = [
+    { col: "received_date", nullsFirst: false },
+    { col: "created_at", nullsFirst: false },
+  ] as const;
 
-  if (error) throw new Error(error.message);
+  let batches: {
+    id: string;
+    quantity_remaining: number | null;
+    expiry_date: string | null;
+    received_date?: string | null;
+    created_at?: string | null;
+  }[] | null = null;
 
-  const available = (batches ?? []).reduce(
+  for (const { col, nullsFirst } of orderAttempts) {
+    const { data, error } = await supabase
+      .from("product_batches")
+      .select("id, quantity_remaining, expiry_date, received_date, created_at")
+      .eq("product_id", productId)
+      .gt("quantity_remaining", 0)
+      .or(`expiry_date.gte.${today},expiry_date.is.null`)
+      .order(col, { ascending: true, nullsFirst });
+
+    if (!error) {
+      batches = data ?? [];
+      break;
+    }
+  }
+
+  if (!batches) {
+    const { data, error } = await supabase
+      .from("product_batches")
+      .select("id, quantity_remaining, expiry_date, created_at")
+      .eq("product_id", productId)
+      .gt("quantity_remaining", 0)
+      .or(`expiry_date.gte.${today},expiry_date.is.null`)
+      .order("created_at", { ascending: true });
+
+    if (error) throw new Error(error.message);
+    batches = data ?? [];
+  }
+
+  const available = batches.reduce(
     (sum, b) => sum + (b.quantity_remaining ?? 0),
     0
   );
@@ -109,11 +147,11 @@ export async function deductStockFefo(
     throw new Error(`Insufficient stock: only ${available} available`);
   }
 
-  const allocations: FefoAllocation[] = [];
+  const allocations: StockAllocation[] = [];
   const batchUpdates: { id: string; quantity_remaining: number }[] = [];
   let remaining = quantity;
 
-  for (const batch of batches ?? []) {
+  for (const batch of batches) {
     if (remaining <= 0) break;
     const inBatch = batch.quantity_remaining ?? 0;
     const take = Math.min(inBatch, remaining);
@@ -156,6 +194,9 @@ export async function deductStockFefo(
 
   return allocations;
 }
+
+/** @deprecated Use deductStockFifo */
+export const deductStockFefo = deductStockFifo;
 
 export function generateInvoiceNumber(): string {
   const d = new Date();

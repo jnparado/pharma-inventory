@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DashboardCharts, Sparkline } from "@/components/dashboard-charts";
+import { DashboardCharts } from "@/components/dashboard-charts";
 import { KpiCard } from "@/components/kpi-card";
 import { SetupNotice, TableScroll } from "@/components/ui";
 import { getDashboardData } from "@/lib/dashboard";
@@ -7,13 +7,6 @@ import { isSupabaseConfigured } from "@/lib/data";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
-
-const orderStatusTone: Record<string, string> = {
-  pending: "bg-amber-100 text-amber-700",
-  approved: "bg-teal-100 text-teal-700",
-  delivered: "bg-sky-100 text-sky-700",
-  cancelled: "bg-red-100 text-red-700",
-};
 
 export default async function DashboardPage() {
   if (!isSupabaseConfigured()) {
@@ -26,6 +19,17 @@ export default async function DashboardPage() {
   }
 
   const data = await getDashboardData();
+
+  const tableHeaders = (
+    <>
+      <th className="pb-3 font-medium">Product name</th>
+      <th className="pb-3 font-medium">Supplier</th>
+      <th className="pb-3 font-medium">Qty</th>
+      <th className="pb-3 font-medium">Exp. Date</th>
+      <th className="pb-3 font-medium">WS Price</th>
+      <th className="pb-3 font-medium">Retail Price</th>
+    </>
+  );
 
   return (
     <div className="space-y-6">
@@ -88,37 +92,39 @@ export default async function DashboardPage() {
             </Link>
           </div>
           <TableScroll>
-            <table className="w-full min-w-[480px] text-sm">
+            <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="text-left text-xs text-slate-400">
-                <th className="pb-3 font-medium">Medicine name</th>
-                <th className="pb-3 font-medium">Expire Date</th>
-                <th className="pb-3 font-medium">Quantity</th>
-                <th className="pb-3 font-medium">Chart</th>
+                {tableHeaders}
               </tr>
             </thead>
             <tbody>
               {data.expiringList.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-slate-400">
+                  <td colSpan={6} className="py-8 text-center text-slate-400">
                     No expiring batches
                   </td>
                 </tr>
               ) : (
-                data.expiringList.map((b) => (
-                  <tr key={b.id} className="border-t border-slate-50">
+                data.expiringList.map((row) => (
+                  <tr key={row.id} className="border-t border-slate-50">
                     <td className="py-3 font-medium text-slate-700">
-                      {b.products?.product_name ?? "—"}
+                      {row.product_name}
                     </td>
                     <td className="py-3 text-slate-500">
-                      {b.expiry_date ? formatDate(b.expiry_date) : "—"}
+                      {row.supplier ?? "—"}
                     </td>
-                    <td className="py-3">{b.quantity_remaining ?? 0}</td>
+                    <td className="py-3">{row.quantity}</td>
+                    <td className="py-3 text-slate-500">
+                      {row.expiry_date ? formatDate(row.expiry_date) : "—"}
+                    </td>
                     <td className="py-3">
-                      <Sparkline
-                        value={b.quantity_remaining ?? 0}
-                        max={data.maxExpiringQty}
-                      />
+                      {row.selling_price_ws != null
+                        ? formatCurrency(row.selling_price_ws)
+                        : "—"}
+                    </td>
+                    <td className="py-3">
+                      {formatCurrency(row.selling_price_retail)}
                     </td>
                   </tr>
                 ))
@@ -134,58 +140,49 @@ export default async function DashboardPage() {
               Recent Orders
             </h3>
             <Link
-              href="/orders"
+              href="/products"
               className="shrink-0 text-xs font-medium text-teal-600 hover:underline"
             >
               See All
             </Link>
           </div>
           <TableScroll>
-            <table className="w-full min-w-[520px] text-sm">
+            <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="text-left text-xs text-slate-400">
-                <th className="pb-3 font-medium">Medicine name</th>
-                <th className="pb-3 font-medium">Batch No</th>
-                <th className="pb-3 font-medium">Quantity</th>
-                <th className="pb-3 font-medium">Status</th>
-                <th className="pb-3 font-medium">Price</th>
+                {tableHeaders}
               </tr>
             </thead>
             <tbody>
               {data.recentOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400">
-                    No purchase orders yet
+                  <td colSpan={6} className="py-8 text-center text-slate-400">
+                    No products yet
                   </td>
                 </tr>
               ) : (
-                data.recentOrders.map((po) => {
-                  const firstItem = po.purchase_order_items?.[0];
-                  const lineTotal =
-                    (firstItem?.quantity ?? 0) * (firstItem?.unit_cost ?? 0);
-                  const status = po.status ?? "pending";
-                  return (
-                    <tr key={po.id} className="border-t border-slate-50">
-                      <td className="py-3 font-medium text-slate-700">
-                        {firstItem?.products?.product_name ?? po.po_number}
-                      </td>
-                      <td className="py-3 font-mono text-xs text-slate-500">
-                        {po.po_number}
-                      </td>
-                      <td className="py-3">{firstItem?.quantity ?? "—"}</td>
-                      <td className="py-3">
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${orderStatusTone[status] ?? "bg-slate-100 text-slate-600"}`}
-                        >
-                          {status}
-                        </span>
-                      </td>
-                      <td className="py-3">
-                        {lineTotal > 0 ? formatCurrency(lineTotal) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })
+                data.recentOrders.map((row) => (
+                  <tr key={row.id} className="border-t border-slate-50">
+                    <td className="py-3 font-medium text-slate-700">
+                      {row.product_name}
+                    </td>
+                    <td className="py-3 text-slate-500">
+                      {row.supplier ?? "—"}
+                    </td>
+                    <td className="py-3">{row.quantity}</td>
+                    <td className="py-3 text-slate-500">
+                      {row.expiry_date ? formatDate(row.expiry_date) : "—"}
+                    </td>
+                    <td className="py-3">
+                      {row.selling_price_ws != null
+                        ? formatCurrency(row.selling_price_ws)
+                        : "—"}
+                    </td>
+                    <td className="py-3">
+                      {formatCurrency(row.selling_price_retail)}
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>

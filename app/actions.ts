@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-guard";
 import { insertCustomer, updateCustomerRow } from "@/lib/customers-db";
 import { convertPurchaseOrderToSalesInvoice } from "@/lib/purchase-order-invoice";
-import { deductStockFefo } from "@/lib/pos";
+import { deductStockFifo } from "@/lib/pos";
 import { revalidateInventory, revalidateProductsPage } from "@/lib/revalidate";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -220,8 +220,8 @@ export async function stockIn(formData: FormData) {
 }
 
 /**
- * Dispense/sell stock using FEFO: deduct from the batch expiring soonest
- * first, spilling over to later batches as needed. Expired batches are
+ * Dispense/sell stock using FIFO: deduct from the oldest received batch
+ * first, spilling over to newer batches as needed. Expired batches are
  * skipped and must be disposed of separately.
  */
 export async function stockOut(formData: FormData) {
@@ -236,13 +236,13 @@ export async function stockOut(formData: FormData) {
   }
 
   try {
-    await deductStockFefo(supabase, productId, requested, referenceNo);
+    await deductStockFifo(supabase, productId, requested, referenceNo);
   } catch (e) {
     redirect(`/stock?error=${encodeURIComponent((e as Error).message)}`);
   }
 
   revalidateInventory("stock");
-  redirect("/stock?success=Stock dispensed (FEFO)");
+  redirect("/stock?success=Stock dispensed (FIFO)");
 }
 
 export async function createBranch(formData: FormData) {

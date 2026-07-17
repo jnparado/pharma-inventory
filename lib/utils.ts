@@ -1,5 +1,24 @@
+/** Parse YYYY-MM-DD (or ISO datetime) as a local calendar date. */
+export function parseLocalDate(date: string | Date): Date {
+  if (date instanceof Date) {
+    const copy = new Date(date);
+    copy.setHours(0, 0, 0, 0);
+    return copy;
+  }
+
+  const iso = String(date).trim().slice(0, 10);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+
+  const parsed = new Date(date);
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
+}
+
 export function formatDate(date: string | Date): string {
-  return new Date(date).toLocaleDateString("en-PH", {
+  return parseLocalDate(date).toLocaleDateString("en-PH", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -25,11 +44,16 @@ export function formatCurrency(amount: number): string {
 
 /** Whole days from today until the given date. Negative if already past. */
 export function daysUntil(date: string | Date): number {
-  const target = new Date(date);
+  const target = parseLocalDate(date);
   const today = new Date();
-  target.setHours(0, 0, 0, 0);
   today.setHours(0, 0, 0, 0);
   return Math.round((target.getTime() - today.getTime()) / 86_400_000);
+}
+
+/** Normalize DB date values to YYYY-MM-DD for date inputs. */
+export function toDateInputValue(date: string | Date | null | undefined): string {
+  if (!date) return "";
+  return String(date).trim().slice(0, 10);
 }
 
 export type ExpiryStatus = "expired" | "expiring-30" | "expiring-90" | "ok";

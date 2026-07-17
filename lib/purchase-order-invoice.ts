@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { deductStockFefo, getAvailableStock } from "@/lib/pos";
+import { deductStockFifo, getAvailableStock } from "@/lib/pos";
 import { issueReceiptForSale, loadSalesByInvoiceNumbers } from "@/lib/receipt";
 import {
   isSchemaError,
@@ -68,7 +68,7 @@ async function assertStockForLines(
   }
 }
 
-/** Create a sales invoice from an approved purchase order and deduct inventory (FEFO). */
+/** Create a sales invoice from an approved purchase order and deduct inventory (FIFO). */
 export async function convertPurchaseOrderToSalesInvoice(
   supabase: SupabaseClient,
   purchaseOrderId: string
@@ -161,7 +161,7 @@ export async function convertPurchaseOrderToSalesInvoice(
     for (const line of lines) {
       if (!line.product_id) continue;
 
-      const allocations = await deductStockFefo(
+      const allocations = await deductStockFifo(
         supabase,
         line.product_id,
         line.quantity,

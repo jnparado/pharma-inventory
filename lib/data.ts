@@ -232,34 +232,46 @@ function mapFlatProductToBatch(
   if (!expiry) return null;
 
   const qty = Number(row.quantity ?? 0);
+  const supplierName =
+    (row.supplier_name as string | null)?.trim() ||
+    (row.suppliers as { company_name?: string } | null)?.company_name?.trim() ||
+    null;
+
   return {
     id: String(row.id),
     product_id: String(row.id),
-    supplier_id: null,
+    supplier_id: (row.supplier_id as string | null) ?? null,
     batch_number: String(row.lot_number ?? row.batch_number ?? "—"),
     manufacture_date: null,
-    expiry_date: expiry,
+    expiry_date: String(expiry).slice(0, 10),
     purchase_price: row.cost != null ? Number(row.cost) : null,
     quantity_received: qty,
     quantity_remaining: qty,
     created_at: (row.created_at as string | null) ?? null,
     products: normalizeJoinedProduct(row),
-    suppliers: null,
+    suppliers: supplierName ? { company_name: supplierName } : null,
   };
 }
 
 async function getBatchesFromFlatProducts(
   supabase: ReturnType<typeof createAdminClient>
 ): Promise<BatchWithProduct[]> {
-  const { data, error } = await supabase.from("products").select("*");
-  if (error) return [];
+  for (const select of ["*, suppliers(company_name)", "*"] as const) {
+    const { data, error } = await supabase.from("products").select(select);
+    if (error) {
+      if (select.includes("suppliers")) continue;
+      return [];
+    }
 
-  return (data as Record<string, unknown>[])
-    .map(mapFlatProductToBatch)
-    .filter((b): b is BatchWithProduct => b !== null)
-    .sort((a, b) =>
-      (a.expiry_date ?? "") < (b.expiry_date ?? "") ? -1 : 1
-    );
+    return ((data ?? []) as unknown as Record<string, unknown>[])
+      .map(mapFlatProductToBatch)
+      .filter((b): b is BatchWithProduct => b !== null)
+      .sort((a, b) =>
+        (a.expiry_date ?? "") < (b.expiry_date ?? "") ? -1 : 1
+      );
+  }
+
+  return [];
 }
 
 async function getBatchesFromProductBatchesTable(

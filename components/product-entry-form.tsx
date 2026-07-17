@@ -2,13 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { buttonClass, inputClass, labelClass } from "@/components/ui";
+import type { Supplier } from "@/lib/types";
 
 type ProductEntry = {
   entry_date: string | null;
   product_name: string;
   brand: string | null;
+  unit: string | null;
+  supplier_id: string | null;
+  rack_location: string | null;
   quantity: number;
   lot_number: string;
   expiry_date: string | null;
@@ -22,9 +26,11 @@ type ProductEntry = {
 function ProductFields({
   editing,
   today,
+  suppliers,
 }: {
   editing?: ProductEntry | null;
   today: string;
+  suppliers: Supplier[];
 }) {
   return (
     <>
@@ -64,6 +70,49 @@ function ProductFields({
           required
           defaultValue={editing?.brand ?? ""}
           placeholder="Unilab"
+          className={inputClass}
+        />
+      </div>
+      <div>
+        <label className={labelClass} htmlFor="unit">
+          Unit of measure <span className="text-red-500">*</span>
+        </label>
+        <input
+          id="unit"
+          name="unit"
+          required
+          defaultValue={editing?.unit ?? "pcs"}
+          placeholder="pcs, box, bottle"
+          className={inputClass}
+        />
+      </div>
+      <div>
+        <label className={labelClass} htmlFor="supplier_id">
+          Supplier
+        </label>
+        <select
+          id="supplier_id"
+          name="supplier_id"
+          defaultValue={editing?.supplier_id ?? ""}
+          className={inputClass}
+        >
+          <option value="">Select supplier…</option>
+          {suppliers.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.company_name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className={labelClass} htmlFor="rack_location">
+          Rack / location
+        </label>
+        <input
+          id="rack_location"
+          name="rack_location"
+          defaultValue={editing?.rack_location ?? ""}
+          placeholder="A-12, Shelf 3"
           className={inputClass}
         />
       </div>
@@ -160,14 +209,89 @@ function ProductFields({
   );
 }
 
+function InventoryUpload({ disabled }: { disabled?: boolean }) {
+  const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/products/import", {
+        method: "POST",
+        body: formData,
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        message?: string;
+        imported?: number;
+      };
+
+      if (!res.ok) {
+        setError(data.error ?? "Import failed");
+        return;
+      }
+
+      setMessage(data.message ?? `Imported ${data.imported ?? 0} products`);
+      router.refresh();
+    } catch (err) {
+      setError((err as Error).message || "Import failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/50 p-4 sm:col-span-3">
+      <p className="mb-2 text-sm font-medium text-slate-700">
+        Upload inventory (CSV)
+      </p>
+      <p className="mb-3 text-xs text-slate-500">
+        Columns: product_name, brand, quantity, lot_number, expiry_date, cost,
+        selling_price_ws, selling_price_retail, unit, supplier_id, rack_location,
+        entry_date
+      </p>
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".csv,text/csv"
+        disabled={disabled || uploading}
+        onChange={handleUpload}
+        className="block w-full max-w-md text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-teal-600 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-teal-700"
+      />
+      {uploading && (
+        <p className="mt-2 text-sm text-slate-500">Uploading…</p>
+      )}
+      {message && (
+        <p className="mt-2 text-sm text-teal-700">{message}</p>
+      )}
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+    </div>
+  );
+}
+
 export function ProductEntryForm({
   mode,
   editing,
   today,
+  suppliers,
 }: {
   mode: "create" | "edit";
   editing?: ProductEntry | null;
   today: string;
+  suppliers: Supplier[];
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -206,6 +330,10 @@ export function ProductEntryForm({
         form.reset();
         const dateInput = form.querySelector<HTMLInputElement>("#entry_date");
         if (dateInput) dateInput.value = today;
+        const expiryInput = form.querySelector<HTMLInputElement>("#expiry_date");
+        if (expiryInput) expiryInput.value = "";
+        const unitInput = form.querySelector<HTMLInputElement>("#unit");
+        if (unitInput) unitInput.value = "pcs";
       }
 
       router.replace(
@@ -227,9 +355,14 @@ export function ProductEntryForm({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-3">
-        <ProductFields editing={editing} today={today} />
-        <div className={`flex flex-wrap gap-2 ${mode === "edit" ? "sm:col-span-3" : "sm:col-span-3"}`}>
+      <form
+        key={mode === "edit" ? editing?.batch_id : "create"}
+        onSubmit={handleSubmit}
+        className="grid gap-4 sm:grid-cols-3"
+      >
+        <ProductFields editing={editing} today={today} suppliers={suppliers} />
+        {mode === "create" && <InventoryUpload disabled={loading} />}
+        <div className="flex flex-wrap gap-2 sm:col-span-3">
           <button
             type="submit"
             disabled={loading}
