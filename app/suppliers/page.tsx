@@ -1,9 +1,5 @@
-import Link from "next/link";
-import {
-  createSupplier,
-  deleteSupplier,
-  updateSupplier,
-} from "@/app/actions";
+import { SuppliersWorkspace } from "@/components/suppliers-workspace";
+import { PageHeader, SetupNotice } from "@/components/ui";
 import {
   getSupplierById,
   getSuppliers,
@@ -11,16 +7,6 @@ import {
 } from "@/lib/data";
 import { canManageRecords } from "@/lib/permissions";
 import { getActiveUser } from "@/lib/user-session";
-import {
-  Card,
-  EmptyState,
-  FlashMessage,
-  PageHeader,
-  SetupNotice,
-  buttonClass,
-  inputClass,
-  labelClass,
-} from "@/components/ui";
 
 export default async function SuppliersPage({
   searchParams,
@@ -52,217 +38,13 @@ export default async function SuppliersPage({
         title="Suppliers"
         description="Distributors and wholesalers you receive stock from."
       />
-      <FlashMessage success={success} error={error} />
-
-      {!isAdmin && (
-        <p className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          View-only mode. Contact an admin to add or edit suppliers.
-        </p>
-      )}
-
-      {isAdmin && editing && (
-        <Card title="Edit supplier" className="mb-6">
-          <form
-            action={updateSupplier}
-            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-          >
-            <input type="hidden" name="id" value={editing.id} />
-            <div>
-              <label className={labelClass} htmlFor="edit_company_name">
-                Company name <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="edit_company_name"
-                name="company_name"
-                required
-                defaultValue={editing.company_name}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="edit_contact_person">
-                Contact person
-              </label>
-              <input
-                id="edit_contact_person"
-                name="contact_person"
-                defaultValue={editing.contact_person ?? ""}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="edit_phone">
-                Phone
-              </label>
-              <input
-                id="edit_phone"
-                name="phone"
-                defaultValue={editing.phone ?? ""}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="edit_email">
-                Email
-              </label>
-              <input
-                id="edit_email"
-                name="email"
-                type="email"
-                defaultValue={editing.email ?? ""}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="edit_address">
-                Address
-              </label>
-              <input
-                id="edit_address"
-                name="address"
-                defaultValue={editing.address ?? ""}
-                className={inputClass}
-              />
-            </div>
-            <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3">
-              <button type="submit" className={buttonClass}>
-                Save changes
-              </button>
-              <Link
-                href="/suppliers"
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Cancel
-              </Link>
-            </div>
-          </form>
-        </Card>
-      )}
-
-      {isAdmin && !editing && (
-        <Card title="Add supplier" className="mb-6">
-          <form
-            action={createSupplier}
-            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-          >
-            <div>
-              <label className={labelClass} htmlFor="company_name">
-                Company name
-              </label>
-              <input
-                id="company_name"
-                name="company_name"
-                required
-                placeholder="MediSupply PH"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="contact_person">
-                Contact person
-              </label>
-              <input
-                id="contact_person"
-                name="contact_person"
-                placeholder="Ana Reyes"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="phone">
-                Phone
-              </label>
-              <input
-                id="phone"
-                name="phone"
-                placeholder="0917-555-1001"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="email">
-                Email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="orders@medisupply.ph"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="address">
-                Address
-              </label>
-              <input
-                id="address"
-                name="address"
-                placeholder="Quezon City"
-                className={inputClass}
-              />
-            </div>
-            <div className="flex items-end">
-              <button type="submit" className={buttonClass}>
-                Add supplier
-              </button>
-            </div>
-          </form>
-        </Card>
-      )}
-
-      <Card title={`Suppliers (${suppliers.length})`}>
-        {suppliers.length === 0 ? (
-          <EmptyState message="No suppliers yet." />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
-                  <th className="pb-2 font-medium">Company</th>
-                  <th className="pb-2 font-medium">Contact</th>
-                  <th className="pb-2 font-medium">Phone</th>
-                  <th className="pb-2 font-medium">Email</th>
-                  <th className="pb-2 font-medium">Address</th>
-                  {isAdmin && <th className="pb-2 font-medium" />}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {suppliers.map((s) => (
-                  <tr key={s.id}>
-                    <td className="py-3 font-medium text-slate-700">
-                      {s.company_name}
-                    </td>
-                    <td className="py-3">{s.contact_person ?? "—"}</td>
-                    <td className="py-3">{s.phone ?? "—"}</td>
-                    <td className="py-3">{s.email ?? "—"}</td>
-                    <td className="py-3 text-slate-500">{s.address ?? "—"}</td>
-                    {isAdmin && (
-                      <td className="py-3 text-right whitespace-nowrap">
-                        <Link
-                          href={`/suppliers?edit=${s.id}`}
-                          className="mr-3 text-xs font-medium text-teal-600 hover:underline"
-                        >
-                          Edit
-                        </Link>
-                        <form action={deleteSupplier} className="inline">
-                          <input type="hidden" name="id" value={s.id} />
-                          <button
-                            type="submit"
-                            className="text-xs font-medium text-red-500 hover:underline"
-                          >
-                            Delete
-                          </button>
-                        </form>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      <SuppliersWorkspace
+        initialSuppliers={suppliers}
+        isAdmin={isAdmin}
+        initialEditing={editing}
+        initialSuccess={success}
+        initialError={error}
+      />
     </>
   );
 }

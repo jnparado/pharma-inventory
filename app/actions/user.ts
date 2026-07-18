@@ -1,6 +1,8 @@
 "use server";
 
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
+import { revalidateUserPaths as deferUserPaths } from "@/lib/revalidate";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { STATIC_AUTH_COOKIE } from "@/lib/static-auth";
@@ -13,13 +15,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getActiveUser } from "@/lib/user-session";
 
 function revalidateUserPaths(path?: string) {
-  if (path) {
-    revalidatePath(path);
-    return;
-  }
-  revalidatePath("/profile");
-  revalidatePath("/settings");
-  revalidatePath("/users");
+  deferUserPaths(path);
 }
 
 export async function signOut() {
@@ -61,8 +57,8 @@ export async function updateUserProfile(formData: FormData) {
     redirect(`/profile?error=${encodeURIComponent(error.message)}`);
   }
 
-  revalidatePath("/profile");
-  revalidatePath("/", "layout");
+  deferUserPaths("/profile");
+  after(() => revalidatePath("/", "layout"));
   redirect("/profile?success=Profile updated successfully");
 }
 

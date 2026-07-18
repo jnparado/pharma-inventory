@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { updateOrderStatus } from "@/app/actions";
 import {
   PurchaseOrderDialog,
   type PoProductOption,
 } from "@/components/purchase-order-dialog";
+import { OrderStatusActions } from "@/components/order-status-actions";
 import {
   getProductInventoryLines,
   getPurchaseOrders,
@@ -25,7 +25,6 @@ import {
   PageHeader,
   SetupNotice,
   TableScroll,
-  buttonClass,
 } from "@/components/ui";
 
 export default async function OrdersPage({
@@ -220,39 +219,12 @@ export default async function OrdersPage({
                     </TableScroll>
                   )}
 
-                  {isAdmin && po.status === "pending" && (
-                    <div className="mt-3 flex flex-wrap gap-3">
-                      <form action={updateOrderStatus}>
-                        <input type="hidden" name="id" value={po.id} />
-                        <input type="hidden" name="status" value="approved" />
-                        <button type="submit" className={buttonClass}>
-                          Approve → Invoice → Receipt
-                        </button>
-                      </form>
-                      <form action={updateOrderStatus}>
-                        <input type="hidden" name="id" value={po.id} />
-                        <input type="hidden" name="status" value="delivered" />
-                        <button
-                          type="submit"
-                          className="text-sm font-medium text-slate-500 hover:underline"
-                        >
-                          Mark delivered
-                        </button>
-                      </form>
-                    </div>
-                  )}
-
-                  {isAdmin && po.status === "approved" && !invoice && (
-                    <form action={updateOrderStatus} className="mt-3">
-                      <input type="hidden" name="id" value={po.id} />
-                      <input type="hidden" name="status" value="approved" />
-                      <button
-                        type="submit"
-                        className="text-sm font-medium text-teal-600 hover:underline"
-                      >
-                        Generate Sales Invoice
-                      </button>
-                    </form>
+                  {isAdmin && (
+                    <OrderStatusActions
+                      orderId={po.id}
+                      status={po.status ?? "pending"}
+                      hasInvoice={Boolean(invoice)}
+                    />
                   )}
                 </div>
               );

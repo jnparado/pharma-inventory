@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { buttonClass, inputClass, labelClass } from "@/components/ui";
-import type { Supplier } from "@/lib/types";
+import type { ProductInventoryLine, Supplier } from "@/lib/types";
 
 type ProductEntry = {
   entry_date: string | null;
@@ -287,11 +287,17 @@ export function ProductEntryForm({
   editing,
   today,
   suppliers,
+  onSaved,
 }: {
   mode: "create" | "edit";
   editing?: ProductEntry | null;
   today: string;
   suppliers: Supplier[];
+  onSaved?: (
+    line: ProductInventoryLine,
+    message: string,
+    mode: "create" | "edit"
+  ) => void;
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -311,6 +317,11 @@ export function ProductEntryForm({
       payload.product_id = editing.product_id;
     }
 
+    const supplierId = String(payload.supplier_id ?? "");
+    const supplierLabel =
+      suppliers.find((s) => s.id === supplierId)?.company_name ?? null;
+    if (supplierLabel) payload.supplier_name = supplierLabel;
+
     try {
       const res = await fetch("/api/products", {
         method: mode === "edit" ? "PUT" : "POST",
@@ -318,7 +329,11 @@ export function ProductEntryForm({
         body: JSON.stringify(payload),
       });
 
-      const data = (await res.json()) as { error?: string; message?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        message?: string;
+        line?: ProductInventoryLine | null;
+      };
 
       if (!res.ok) {
         setError(data.error ?? "Could not save product");
@@ -336,10 +351,14 @@ export function ProductEntryForm({
         if (unitInput) unitInput.value = "pcs";
       }
 
-      router.replace(
-        `/products?success=${encodeURIComponent(data.message ?? "Saved")}`
-      );
-      router.refresh();
+      const message = data.message ?? "Saved";
+      if (data.line && onSaved) {
+        onSaved(data.line, message, mode);
+      } else if (mode === "edit") {
+        router.replace("/products");
+        router.refresh();
+      }
+
       setLoading(false);
     } catch (err) {
       setError((err as Error).message || "Could not save product");

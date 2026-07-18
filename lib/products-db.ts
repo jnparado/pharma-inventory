@@ -83,6 +83,7 @@ const INVENTORY_SELECTS = [
 
 let cachedProductColumns: Set<string> | null = null;
 let cachedFlatRegister: boolean | null = null;
+let cachedInventorySelect: string | null = null;
 
 export function invalidateProductColumnCache(): void {
   cachedProductColumns = null;
@@ -237,15 +238,11 @@ function mapProductRow(r: Record<string, unknown>): ProductInventoryLine {
 async function getProductColumns(
   supabase: SupabaseClient
 ): Promise<Set<string>> {
-  if (cachedProductColumns) {
-    await refreshProductColumnProbe(supabase, cachedProductColumns);
-    return cachedProductColumns;
-  }
+  if (cachedProductColumns) return cachedProductColumns;
 
   const { data, error } = await supabase.from("products").select("*").limit(1);
   if (!error && data?.[0]) {
     cachedProductColumns = new Set(Object.keys(data[0]));
-    await refreshProductColumnProbe(supabase, cachedProductColumns);
     return cachedProductColumns;
   }
 
@@ -318,8 +315,15 @@ async function writeProductsRow(
             : typeof payload.rack === "string"
               ? payload.rack
               : null;
-      await patchRackLocation(supabase, savedId, rack);
-      invalidateProductColumnCache();
+      const wroteRack =
+        !!rack?.trim() &&
+        RACK_WRITE_COLUMNS.some((col) => {
+          const value = row[col];
+          return typeof value === "string" && value.trim() === rack.trim();
+        });
+      if (rack?.trim() && !wroteRack) {
+        await patchRackLocation(supabase, savedId, rack);
+      }
       return { id: savedId, error: null };
     }
 
@@ -436,24 +440,24 @@ async function fetchFromProductsOnly(
   supabase: SupabaseClient,
   productId?: string
 ): Promise<ProductInventoryLine[]> {
-  const selects = [
+  const defaultSelects = [
     "*, supplier:suppliers(company_name)",
     "*, suppliers(company_name)",
     "*",
   ] as const;
 
+  const selects = cachedInventorySelect
+    ? ([cachedInventorySelect, ...defaultSelects.filter((s) => s !== cachedInventorySelect)] as const)
+    : defaultSelects;
+
   for (const select of selects) {
-    const buildQuery = () => {
-      let query = supabase.from("products").select(select);
-      if (productId) query = query.eq("id", productId);
-      return query;
-    };
+    let query = supabase.from("products").select(select);
+    if (productId) query = query.eq("id", productId);
 
     for (const orderCol of ["created_at", "id"] as const) {
-      const { data, error } = await buildQuery().order(orderCol, {
-        ascending: false,
-      });
+      const { data, error } = await query.order(orderCol, { ascending: false });
       if (!error) {
+        if (!cachedInventorySelect) cachedInventorySelect = select;
         return (data ?? []).map((row) =>
           mapProductRow(row as unknown as Record<string, unknown>)
         );
@@ -461,22 +465,34 @@ async function fetchFromProductsOnly(
       if (!missingColumn(error.message, orderCol)) break;
     }
 
-    const { data, error } = await buildQuery();
-    if (!error) {
-      return (data ?? []).map((row) =>
-        mapProductRow(row as unknown as Record<string, unknown>)
-      );
-    }
-    if (
-      !missingColumn(error.message, "suppliers") &&
-      !missingColumn(error.message, "supplier")
-    ) {
-      console.error("Failed to load products:", error.message);
-      return [];
-    }
+    if (select === cachedInventorySelect) cachedInventorySelect = null;
   }
 
   return [];
+}
+
+export function productLineFromInput(
+  input: ProductEntryInput,
+  ids: { productId: string; batchId: string },
+  extras?: { supplier_name?: string | null }
+): ProductInventoryLine {
+  return {
+    batch_id: ids.batchId,
+    product_id: ids.productId,
+    entry_date: input.entry_date,
+    product_name: input.product_name,
+    brand: input.brand || null,
+    unit: input.unit,
+    supplier_id: input.supplier_id,
+    supplier_name: extras?.supplier_name ?? null,
+    rack_location: input.rack_location,
+    quantity: input.quantity,
+    lot_number: input.lot_number,
+    expiry_date: input.expiry_date,
+    cost: input.cost,
+    selling_price_ws: input.selling_price_ws,
+    selling_price_retail: input.selling_price_retail,
+  };
 }
 
 async function insertProductRow(

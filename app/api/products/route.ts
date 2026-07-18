@@ -3,15 +3,16 @@ import { revalidateProductsPage } from "@/lib/revalidate";
 import { isAdmin } from "@/lib/permissions";
 import {
   deleteProductEntry,
-  fetchProductInventoryRows,
   insertProductEntry,
   parseProductEntryBody,
+  productLineFromInput,
   updateProductEntry,
   validateProductEntry,
 } from "@/lib/products-db";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hasServiceRoleKey } from "@/lib/env";
 import { getActiveUser } from "@/lib/user-session";
+import type { ProductInventoryLine } from "@/lib/types";
 
 async function requireAdminApi() {
   const user = await getActiveUser();
@@ -19,6 +20,19 @@ async function requireAdminApi() {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 });
   }
   return null;
+}
+
+function lineResponse(
+  input: ReturnType<typeof parseProductEntryBody>,
+  productId: string,
+  batchId: string,
+  supplierName?: string | null
+): ProductInventoryLine {
+  return productLineFromInput(
+    input,
+    { productId, batchId },
+    { supplier_name: supplierName ?? null }
+  );
 }
 
 export async function POST(request: Request) {
@@ -44,19 +58,19 @@ export async function POST(request: Request) {
     }
 
     const supabase = createAdminClient();
-    const { error, productId } = await insertProductEntry(supabase, input);
+    const { error, productId, batchId } = await insertProductEntry(supabase, input);
     if (error) {
       return NextResponse.json({ error }, { status: 400 });
     }
 
     revalidateProductsPage();
-    const lines = productId
-      ? await fetchProductInventoryRows(supabase, productId)
-      : [];
+
+    const id = productId ?? "";
+    const bid = batchId ?? productId ?? "";
     return NextResponse.json({
       ok: true,
       message: "Product added",
-      line: lines[0] ?? null,
+      line: lineResponse(input, id, bid, body.supplier_name as string | undefined),
     });
   } catch (e) {
     return NextResponse.json(
@@ -109,11 +123,16 @@ export async function PUT(request: Request) {
     }
 
     revalidateProductsPage();
-    const lines = await fetchProductInventoryRows(supabase, productId);
+
     return NextResponse.json({
       ok: true,
       message: "Product updated",
-      line: lines[0] ?? null,
+      line: lineResponse(
+        input,
+        productId,
+        batchId,
+        body.supplier_name as string | undefined
+      ),
     });
   } catch (e) {
     return NextResponse.json(
@@ -155,7 +174,11 @@ export async function DELETE(request: Request) {
     }
 
     revalidateProductsPage();
-    return NextResponse.json({ ok: true, message: "Product removed" });
+    return NextResponse.json({
+      ok: true,
+      message: "Product removed",
+      batch_id: batchId,
+    });
   } catch (e) {
     return NextResponse.json(
       { error: (e as Error).message ?? "Could not delete product" },

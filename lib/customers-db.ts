@@ -288,12 +288,27 @@ export async function fetchCustomerById(
     : null;
 }
 
+export function customerFromInput(
+  input: CustomerInput,
+  id: string,
+  created_at?: string | null
+): Customer {
+  return {
+    id,
+    full_name: input.full_name,
+    email: input.email,
+    phone: input.phone,
+    address: input.address,
+    created_at: created_at ?? new Date().toISOString(),
+  };
+}
+
 export async function insertCustomer(
   supabase: SupabaseClient,
   input: CustomerInput
-): Promise<{ error: string | null }> {
+): Promise<{ error: string | null; id: string | null }> {
   const result = await writeCustomerRow(supabase, input);
-  return { error: result.error };
+  return { error: result.error, id: result.id };
 }
 
 export async function updateCustomerRow(

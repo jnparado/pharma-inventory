@@ -9,13 +9,22 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 export function ProductInventoryTable({
   lines,
   isAdmin,
+  onDeleted,
+  onError,
 }: {
   lines: ProductInventoryLine[];
   isAdmin: boolean;
+  onDeleted?: (batchId: string, message: string) => void;
+  onError?: (message: string) => void;
 }) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState("");
+
+  function reportError(message: string) {
+    setError(message);
+    onError?.(message);
+  }
 
   async function handleDelete(line: ProductInventoryLine) {
     if (
@@ -29,26 +38,37 @@ export function ProductInventoryTable({
     setError("");
     setDeletingId(line.batch_id);
 
+    const batchId = line.batch_id;
+    if (onDeleted) {
+      onDeleted(batchId, "Product removed");
+    }
+
     try {
       const params = new URLSearchParams({
         batch_id: line.batch_id,
         product_id: line.product_id,
       });
       const res = await fetch(`/api/products?${params}`, { method: "DELETE" });
-      const data = (await res.json()) as { error?: string; message?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        message?: string;
+        batch_id?: string;
+      };
 
       if (!res.ok) {
-        setError(data.error ?? "Could not delete product");
+        reportError(data.error ?? "Could not delete product");
+        router.refresh();
         setDeletingId(null);
         return;
       }
 
-      router.replace(
-        `/products?success=${encodeURIComponent(data.message ?? "Product removed")}`
-      );
-      router.refresh();
+      if (!onDeleted) {
+        const message = data.message ?? "Product removed";
+        router.replace(`/products?success=${encodeURIComponent(message)}`);
+        router.refresh();
+      }
     } catch (err) {
-      setError((err as Error).message || "Could not delete product");
+      reportError((err as Error).message || "Could not delete product");
     } finally {
       setDeletingId(null);
     }

@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 
 const GROUPS = {
@@ -14,19 +15,41 @@ const GROUPS = {
 
 export type RevalidateGroup = keyof typeof GROUPS;
 
-/** Fast path: refresh only the product register page after CRUD. */
+/** Fast path: refresh product register after CRUD (deferred until after response). */
 export function revalidateProductsPage() {
-  revalidatePath("/products");
+  after(() => {
+    revalidatePath("/products");
+  });
 }
 
-/** Invalidate only routes affected by a mutation (not the whole app). */
+/** Invalidate only routes affected by a mutation (deferred until after response). */
 export function revalidateInventory(...groups: RevalidateGroup[]) {
+  const paths: string[] = [];
   const seen = new Set<string>();
   for (const group of groups) {
     for (const path of GROUPS[group]) {
       if (seen.has(path)) continue;
       seen.add(path);
-      revalidatePath(path);
+      paths.push(path);
     }
   }
+  if (paths.length === 0) return;
+  after(() => {
+    for (const path of paths) {
+      revalidatePath(path);
+    }
+  });
+}
+
+/** Defer user/profile path revalidation after mutations. */
+export function revalidateUserPaths(path?: string) {
+  after(() => {
+    if (path) {
+      revalidatePath(path);
+      return;
+    }
+    revalidatePath("/profile");
+    revalidatePath("/settings");
+    revalidatePath("/users");
+  });
 }

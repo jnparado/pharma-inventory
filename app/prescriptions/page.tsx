@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { processPrescription } from "@/app/actions";
 import type { PrescriptionMatch } from "@/lib/types";
 import {
   Badge,
@@ -19,7 +18,9 @@ export default function PrescriptionsPage() {
   const [doctor, setDoctor] = useState("");
   const [matches, setMatches] = useState<PrescriptionMatch[]>([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState("");
 
   async function validate() {
     setLoading(true);
@@ -84,17 +85,44 @@ export default function PrescriptionsPage() {
               {loading ? "Checking inventory…" : "Validate prescription"}
             </button>
             {error && <p className="text-sm text-red-600">{error}</p>}
+            {success && (
+              <p className="text-sm text-teal-700">{success}</p>
+            )}
 
-            <form action={processPrescription} className="border-t border-slate-100 pt-4">
-              <input type="hidden" name="prescription_text" value={text} />
-              <input type="hidden" name="doctor_name" value={doctor} />
+            <div className="border-t border-slate-100 pt-4">
               <button
-                type="submit"
-                className="text-sm font-medium text-slate-600 hover:underline"
+                type="button"
+                disabled={saving || !text.trim()}
+                onClick={async () => {
+                  setSaving(true);
+                  setError(null);
+                  setSuccess("");
+                  try {
+                    const res = await fetch("/api/prescriptions", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        prescription_text: text,
+                        doctor_name: doctor,
+                      }),
+                    });
+                    const data = (await res.json()) as {
+                      error?: string;
+                      message?: string;
+                    };
+                    if (!res.ok) throw new Error(data.error);
+                    setSuccess(data.message ?? "Prescription saved");
+                  } catch (e) {
+                    setError((e as Error).message);
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                className="text-sm font-medium text-slate-600 hover:underline disabled:opacity-50"
               >
-                Save prescription record
+                {saving ? "Saving…" : "Save prescription record"}
               </button>
-            </form>
+            </div>
           </div>
         </Card>
 
