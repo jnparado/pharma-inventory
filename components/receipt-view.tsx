@@ -6,7 +6,7 @@ import { formatCurrency, formatDateTime } from "@/lib/utils";
 
 export function ReceiptView({
   sale,
-  showActions = true,
+  showActions = false,
 }: {
   sale: SaleWithItems;
   showActions?: boolean;

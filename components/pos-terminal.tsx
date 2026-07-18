@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ProductWithStock } from "@/lib/types";
 import { formatCurrency, stockQuantityLabel } from "@/lib/utils";
@@ -268,12 +267,6 @@ export function PosTerminal({ products }: { products: ProductWithStock[] }) {
                 {receipt.change > 0 && (
                   <p>Change: {formatCurrency(receipt.change)}</p>
                 )}
-                <Link
-                  href={`/receipt/${receipt.saleId}`}
-                  className="mt-2 inline-block text-sm font-medium text-teal-700 hover:underline"
-                >
-                  View & print receipt →
-                </Link>
               </div>
             )}
 

@@ -45,7 +45,7 @@ export default async function ReceiptPage({
         description="Sales invoice converted to receipt (OR)."
       />
       <FlashMessage success={success} />
-      <ReceiptView sale={sale} />
+      <ReceiptView sale={sale} showActions={false} />
     </>
   );
 }

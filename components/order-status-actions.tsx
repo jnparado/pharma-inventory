@@ -29,18 +29,12 @@ export function OrderStatusActions({
       });
       const data = (await res.json()) as {
         error?: string;
-        redirect?: string;
         message?: string;
       };
 
       if (!res.ok) {
         setError(data.error ?? "Could not update order");
         setLoading(null);
-        return;
-      }
-
-      if (data.redirect) {
-        router.push(data.redirect);
         return;
       }
 
@@ -52,49 +46,34 @@ export function OrderStatusActions({
     }
   }
 
+  if (hasInvoice || status !== "pending") {
+    return null;
+  }
+
   return (
     <>
-      {error && (
-        <p className="mt-2 text-sm text-red-600">{error}</p>
-      )}
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
 
-      {status === "pending" && (
-        <div className="mt-3 flex flex-wrap gap-3">
-          <button
-            type="button"
-            disabled={loading !== null}
-            onClick={() => updateStatus("approved")}
-            className={buttonClass}
-          >
-            {loading === "approved"
-              ? "Approving…"
-              : "Approve → Invoice → Receipt"}
-          </button>
-          <button
-            type="button"
-            disabled={loading !== null}
-            onClick={() => updateStatus("delivered")}
-            className="text-sm font-medium text-slate-500 hover:underline disabled:opacity-50"
-          >
-            {loading === "delivered" ? "Updating…" : "Mark delivered"}
-          </button>
-        </div>
-      )}
-
-      {status === "approved" && !hasInvoice && (
-        <div className="mt-3">
-          <button
-            type="button"
-            disabled={loading !== null}
-            onClick={() => updateStatus("approved")}
-            className="text-sm font-medium text-teal-600 hover:underline disabled:opacity-50"
-          >
-            {loading === "approved"
-              ? "Generating…"
-              : "Generate Sales Invoice"}
-          </button>
-        </div>
-      )}
+      <div className="mt-3 flex flex-wrap gap-3">
+        <button
+          type="button"
+          disabled={loading !== null}
+          onClick={() => updateStatus("approved")}
+          className={buttonClass}
+        >
+          {loading === "approved"
+            ? "Processing…"
+            : "Generate Sales Invoice & add stock"}
+        </button>
+        <button
+          type="button"
+          disabled={loading !== null}
+          onClick={() => updateStatus("delivered")}
+          className="text-sm font-medium text-slate-500 hover:underline disabled:opacity-50"
+        >
+          {loading === "delivered" ? "Updating…" : "Mark delivered"}
+        </button>
+      </div>
     </>
   );
 }

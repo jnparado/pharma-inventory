@@ -56,6 +56,7 @@ export function PurchaseOrderDialog({
     message: string;
     poId: string;
     poNumber: string;
+    invoiceNumber?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -137,6 +138,7 @@ export function PurchaseOrderDialog({
         message?: string;
         id?: string;
         po_number?: string;
+        invoice_number?: string;
       };
 
       if (!res.ok) {
@@ -148,6 +150,7 @@ export function PurchaseOrderDialog({
         message: data.message ?? "Purchase order created",
         poId: data.id ?? "",
         poNumber: data.po_number ?? "",
+        invoiceNumber: data.invoice_number,
       });
       router.refresh();
     } catch (err) {
@@ -207,6 +210,11 @@ export function PurchaseOrderDialog({
               <div className="space-y-4 px-5 py-6">
                 <div className="rounded-lg border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-teal-800">
                   {success.message}
+                  {success.invoiceNumber && (
+                    <p className="mt-2 font-mono text-xs text-teal-900">
+                      Sales Invoice: {success.invoiceNumber}
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <Link

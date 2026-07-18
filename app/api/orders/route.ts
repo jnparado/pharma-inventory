@@ -41,16 +41,16 @@ export async function PUT(request: Request) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
 
-      revalidateInventory("orders", "sales", "stock");
+      revalidateInventory("orders", "sales", "stock", "products");
       const message = result.alreadyExists
-        ? `Receipt ${result.receiptNumber} issued (Invoice ${result.invoiceNumber})`
-        : `Invoice ${result.invoiceNumber} converted to Receipt ${result.receiptNumber}`;
+        ? `Sales Invoice ${result.invoiceNumber} already exists — inventory unchanged`
+        : `Sales Invoice ${result.invoiceNumber} created and inventory updated`;
 
       return NextResponse.json({
         ok: true,
         message,
-        redirect: `/receipt/${result.saleId}?success=${encodeURIComponent(message)}`,
         status: "approved",
+        invoice_number: result.invoiceNumber,
       });
     }
 

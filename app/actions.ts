@@ -296,10 +296,17 @@ export async function generatePurchaseOrders() {
     redirect(`/orders?error=${encodeURIComponent(result.error)}`);
   }
 
-  revalidateInventory("orders");
+  const convert = await convertPurchaseOrderToSalesInvoice(supabase, result.id);
+  if (!convert.ok) {
+    await supabase.from("purchase_order_items").delete().eq("purchase_order_id", result.id);
+    await supabase.from("purchase_orders").delete().eq("id", result.id);
+    redirect(`/orders?error=${encodeURIComponent(convert.error)}`);
+  }
+
+  revalidateInventory("orders", "stock", "sales", "products");
   redirect(
-    `/orders/${result.id}?success=${encodeURIComponent(
-      `Auto PO ${result.po_number} created (${result.itemCount} items)`
+    `/orders?success=${encodeURIComponent(
+      `Auto PO ${result.po_number} — Sales Invoice ${convert.invoiceNumber} (${result.itemCount} items, inventory updated)`
     )}`
   );
 }
@@ -327,13 +334,11 @@ export async function updateOrderStatus(formData: FormData) {
     if (!result.ok) {
       redirect(`/orders?error=${encodeURIComponent(result.error)}`);
     }
-    revalidateInventory("orders", "sales", "stock");
+    revalidateInventory("orders", "sales", "stock", "products");
     const message = result.alreadyExists
-      ? `Receipt ${result.receiptNumber} issued (Invoice ${result.invoiceNumber})`
-      : `Invoice ${result.invoiceNumber} converted to Receipt ${result.receiptNumber}`;
-    redirect(
-      `/receipt/${result.saleId}?success=${encodeURIComponent(message)}`
-    );
+      ? `Sales Invoice ${result.invoiceNumber} already exists`
+      : `Sales Invoice ${result.invoiceNumber} created and inventory updated`;
+    redirect(`/orders?success=${encodeURIComponent(message)}`);
   }
 
   const { error } = await supabase

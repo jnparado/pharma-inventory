@@ -12,7 +12,6 @@ import {
 } from "@/lib/data";
 import { getSalesInvoicesForPurchaseOrders } from "@/lib/purchase-order-invoice";
 import { canManageRecords } from "@/lib/permissions";
-import { displayReceiptNumber } from "@/lib/receipt";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getActiveUser } from "@/lib/user-session";
 import type { PurchaseOrder } from "@/lib/types";
@@ -87,15 +86,15 @@ export default async function OrdersPage({
     <>
       <PageHeader
         title="Purchase Orders"
-        description="Create POs for suppliers, print them, then approve to generate Sales Invoice and Receipt."
+        description="Create POs for suppliers — each PO automatically becomes a Sales Invoice and adds stock to inventory."
       />
       <FlashMessage success={success} error={error} />
 
       <Card title="Create purchase order">
         <p className="mb-4 text-sm text-slate-600">
-          Click <strong>Generate PO</strong> to open a form where you can pick a
-          supplier, add products and quantities, or auto-reorder low-stock items.
-          After saving, you can print the PO for your supplier.
+          Click <strong>Generate PO</strong> to pick a supplier, add products, or
+          auto-reorder low-stock items. Saving creates the PO, generates a Sales
+          Invoice, and adds quantities to inventory automatically.
         </p>
         <PurchaseOrderDialog
           suppliers={suppliers.map((s) => ({
@@ -134,29 +133,15 @@ export default async function OrdersPage({
                         {po.created_at ? formatDateTime(po.created_at) : "—"}
                       </p>
                       {invoice && (
-                        <div className="mt-1 space-y-0.5 text-sm">
-                          <p>
-                            <span className="text-slate-500">Sales Invoice: </span>
-                            <span className="font-mono font-medium text-slate-700">
-                              {invoice.invoice_number}
-                            </span>
-                            <span className="ml-2 text-slate-500">
-                              ({formatCurrency(invoice.total_amount)})
-                            </span>
-                          </p>
-                          <p>
-                            <span className="text-slate-500">Receipt: </span>
-                            <Link
-                              href={`/receipt/${invoice.sale_id}`}
-                              className="font-mono font-medium text-teal-600 hover:underline"
-                            >
-                              {displayReceiptNumber({
-                                invoice_number: invoice.invoice_number,
-                                receipt_number: invoice.receipt_number,
-                              })}
-                            </Link>
-                          </p>
-                        </div>
+                        <p className="mt-1 text-sm">
+                          <span className="text-slate-500">Sales Invoice: </span>
+                          <span className="font-mono font-medium text-slate-700">
+                            {invoice.invoice_number}
+                          </span>
+                          <span className="ml-2 text-slate-500">
+                            ({formatCurrency(invoice.total_amount)})
+                          </span>
+                        </p>
                       )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">

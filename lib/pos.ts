@@ -232,6 +232,68 @@ export async function deductStockFifo(
   return allocations;
 }
 
+/** Receive stock from a purchase order (adds to inventory). */
+export async function receiveStockForPo(
+  supabase: SupabaseClient,
+  productId: string,
+  quantity: number,
+  referenceNo: string,
+  options?: { unitCost?: number; supplierId?: string | null }
+): Promise<StockAllocation[]> {
+  if (await isFlatRegister(supabase)) {
+    const row = await loadFlatProductRow(supabase, productId, "single");
+    if (!row) throw new Error("Product not found");
+
+    const current = row.quantity ?? 0;
+    const { error: updateError } = await supabase
+      .from("products")
+      .update({ quantity: current + quantity })
+      .eq("id", productId);
+
+    if (updateError) throw new Error(updateError.message);
+
+    void supabase.from("inventory_transactions").insert({
+      product_id: productId,
+      batch_id: productId,
+      transaction_type: "stock_in",
+      quantity,
+      reference_no: referenceNo,
+    });
+
+    return [{ batch_id: productId, quantity }];
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: batch, error: batchError } = await supabase
+    .from("product_batches")
+    .insert({
+      product_id: productId,
+      supplier_id: options?.supplierId ?? null,
+      batch_number: `${referenceNo}-${Date.now().toString(36).slice(-4)}`,
+      expiry_date: null,
+      quantity_received: quantity,
+      quantity_remaining: quantity,
+      purchase_price: options?.unitCost ?? 0,
+      received_date: today,
+    })
+    .select("id")
+    .single();
+
+  if (batchError) throw new Error(batchError.message);
+
+  const { error: txError } = await supabase.from("inventory_transactions").insert({
+    product_id: productId,
+    batch_id: batch.id,
+    transaction_type: "stock_in",
+    quantity,
+    reference_no: referenceNo,
+  });
+
+  if (txError) throw new Error(txError.message);
+
+  return [{ batch_id: batch.id, quantity }];
+}
+
 /** @deprecated Use deductStockFifo */
 export const deductStockFefo = deductStockFifo;
 

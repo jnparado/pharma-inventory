@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { deductStockFifo, getAvailableStock } from "@/lib/pos";
-import { issueReceiptForSale, loadSalesByInvoiceNumbers } from "@/lib/receipt";
+import { receiveStockForPo } from "@/lib/pos";
+import { loadSalesByInvoiceNumbers } from "@/lib/receipt";
 import {
   isSchemaError,
   PO_CONVERT_SELECTS,
@@ -21,6 +21,7 @@ type PoLine = {
   product_name: string;
   quantity: number;
   unit_price: number;
+  unit_cost: number;
   subtotal: number;
 };
 
@@ -28,7 +29,7 @@ type ConvertResult =
   | {
       ok: true;
       invoiceNumber: string;
-      receiptNumber: string;
+      receiptNumber: string | null;
       saleId: string;
       alreadyExists: boolean;
     }
@@ -51,24 +52,7 @@ async function loadPurchaseOrderForConvert(
   return null;
 }
 
-async function assertStockForLines(
-  supabase: SupabaseClient,
-  lines: PoLine[]
-): Promise<void> {
-  for (const line of lines) {
-    if (!line.product_id) {
-      throw new Error("Purchase order has a line without a product");
-    }
-    const available = await getAvailableStock(supabase, line.product_id);
-    if (available < line.quantity) {
-      throw new Error(
-        `Insufficient stock for ${line.product_name}: need ${line.quantity}, only ${available} available`
-      );
-    }
-  }
-}
-
-/** Create a sales invoice from an approved purchase order and deduct inventory (FIFO). */
+/** Create a sales invoice from a purchase order and add items to inventory. */
 export async function convertPurchaseOrderToSalesInvoice(
   supabase: SupabaseClient,
   purchaseOrderId: string
@@ -92,6 +76,7 @@ export async function convertPurchaseOrderToSalesInvoice(
   }
 
   const invoiceNumber = salesInvoiceNumberForPo(po.po_number as string);
+  const supplierId = (po.supplier_id as string | null) ?? null;
 
   const { data: existing } = await supabase
     .from("sales")
@@ -105,17 +90,10 @@ export async function convertPurchaseOrderToSalesInvoice(
       .update({ status: "approved" })
       .eq("id", purchaseOrderId);
 
-    let receipt;
-    try {
-      receipt = await issueReceiptForSale(supabase, existing.id);
-    } catch (e) {
-      return { ok: false, error: (e as Error).message };
-    }
-
     return {
       ok: true,
       invoiceNumber: existing.invoice_number,
-      receiptNumber: receipt.receiptNumber,
+      receiptNumber: null,
       saleId: existing.id,
       alreadyExists: true,
     };
@@ -124,8 +102,9 @@ export async function convertPurchaseOrderToSalesInvoice(
   let total = 0;
   const lines: PoLine[] = items.map((item) => {
     const product = productRow(item.products);
+    const unitCost = Number(item.unit_cost ?? 0);
     const unitPrice =
-      productSellingPrice(product) || Number(item.unit_cost ?? 0);
+      unitCost > 0 ? unitCost : productSellingPrice(product) || 0;
     const subtotal = item.quantity * unitPrice;
     total += subtotal;
     return {
@@ -133,15 +112,10 @@ export async function convertPurchaseOrderToSalesInvoice(
       product_name: String(product?.product_name ?? "Product"),
       quantity: item.quantity,
       unit_price: unitPrice,
+      unit_cost: unitCost,
       subtotal,
     };
   });
-
-  try {
-    await assertStockForLines(supabase, lines);
-  } catch (e) {
-    return { ok: false, error: (e as Error).message };
-  }
 
   const { data: sale, error: saleError } = await supabase
     .from("sales")
@@ -161,11 +135,12 @@ export async function convertPurchaseOrderToSalesInvoice(
     for (const line of lines) {
       if (!line.product_id) continue;
 
-      const allocations = await deductStockFifo(
+      const allocations = await receiveStockForPo(
         supabase,
         line.product_id,
         line.quantity,
-        invoiceNumber
+        invoiceNumber,
+        { unitCost: line.unit_cost, supplierId }
       );
 
       for (const alloc of allocations) {
@@ -196,17 +171,10 @@ export async function convertPurchaseOrderToSalesInvoice(
     return { ok: false, error: statusError.message };
   }
 
-  let receipt;
-  try {
-    receipt = await issueReceiptForSale(supabase, sale.id);
-  } catch (e) {
-    return { ok: false, error: (e as Error).message };
-  }
-
   return {
     ok: true,
     invoiceNumber,
-    receiptNumber: receipt.receiptNumber,
+    receiptNumber: null,
     saleId: sale.id,
     alreadyExists: false,
   };
