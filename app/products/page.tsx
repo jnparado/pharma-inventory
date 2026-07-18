@@ -1,5 +1,7 @@
 import { ProductEntryForm } from "@/components/product-entry-form";
 import { ProductInventoryTable } from "@/components/product-inventory-table";
+import { productTableHasRackColumn } from "@/lib/products-db";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getProductInventoryLineByBatchId,
   getProductInventoryLines,
@@ -41,12 +43,16 @@ export default async function ProductsPage({
     null;
   let loadError = error ?? "";
 
+  let hasRackColumn = true;
+
   try {
-    [lines, suppliers, activeUser, editing] = await Promise.all([
+    const supabase = createAdminClient();
+    [lines, suppliers, activeUser, editing, hasRackColumn] = await Promise.all([
       getProductInventoryLines(),
       getSuppliers(),
       getActiveUser(),
       edit ? getProductInventoryLineByBatchId(edit) : Promise.resolve(null),
+      productTableHasRackColumn(supabase).catch(() => false),
     ]);
   } catch (e) {
     loadError =
@@ -64,6 +70,17 @@ export default async function ProductsPage({
         description="Inventory register — date, product, brand, UOM, supplier, location, quantity, lot, expiry, cost, and wholesale/retail prices."
       />
       <FlashMessage success={success} error={loadError || undefined} />
+
+      {isAdmin && !hasRackColumn && (
+        <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          The <code className="rounded bg-amber-100 px-1">rack_location</code>{" "}
+          column is missing on <code className="rounded bg-amber-100 px-1">products</code>.
+          Run in Supabase SQL Editor:{" "}
+          <code className="rounded bg-amber-100 px-1">
+            ALTER TABLE public.products ADD COLUMN IF NOT EXISTS rack_location text;
+          </code>
+        </p>
+      )}
 
       {isSupabaseConfigured() && !hasServiceRoleKey() && (
         <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

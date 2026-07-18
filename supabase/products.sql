@@ -21,6 +21,7 @@ ALTER TABLE public.products
   ADD COLUMN IF NOT EXISTS lot_number text,
   ADD COLUMN IF NOT EXISTS quantity integer DEFAULT 0,
   ADD COLUMN IF NOT EXISTS unit text DEFAULT 'pcs',
+  ADD COLUMN IF NOT EXISTS supplier uuid REFERENCES public.suppliers(id),
   ADD COLUMN IF NOT EXISTS supplier_id uuid,
   ADD COLUMN IF NOT EXISTS supplier_name text,
   ADD COLUMN IF NOT EXISTS rack_location text,

@@ -214,12 +214,19 @@ function mapFlatProductToBatch(
   const supplierName =
     (row.supplier_name as string | null)?.trim() ||
     (row.suppliers as { company_name?: string } | null)?.company_name?.trim() ||
+    (typeof row.supplier === "object" &&
+    row.supplier !== null &&
+    !Array.isArray(row.supplier)
+      ? (row.supplier as { company_name?: string }).company_name?.trim()
+      : null) ||
     null;
 
   return {
     id: String(row.id),
     product_id: String(row.id),
-    supplier_id: (row.supplier_id as string | null) ?? null,
+    supplier_id:
+      (row.supplier_id as string | null) ??
+      (typeof row.supplier === "string" ? row.supplier : null),
     batch_number: String(row.lot_number ?? row.batch_number ?? "—"),
     manufacture_date: null,
     expiry_date: String(expiry).slice(0, 10),
@@ -235,7 +242,11 @@ function mapFlatProductToBatch(
 async function getBatchesFromFlatProducts(
   supabase: ReturnType<typeof createAdminClient>
 ): Promise<BatchWithProduct[]> {
-  for (const select of ["*, suppliers(company_name)", "*"] as const) {
+  for (const select of [
+    "*, supplier:suppliers(company_name)",
+    "*, suppliers(company_name)",
+    "*",
+  ] as const) {
     const { data, error } = await supabase.from("products").select(select);
     if (error) {
       if (select.includes("suppliers")) continue;

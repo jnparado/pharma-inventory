@@ -70,7 +70,7 @@ export function ProductInventoryTable({
               <th className="pb-2 pr-3 font-medium">Brand</th>
               <th className="pb-2 pr-3 font-medium">UOM</th>
               <th className="pb-2 pr-3 font-medium">Supplier</th>
-              <th className="pb-2 pr-3 font-medium">Location</th>
+              <th className="pb-2 pr-3 font-medium">Rack / location</th>
               <th className="pb-2 pr-3 font-medium">Quantity</th>
               <th className="pb-2 pr-3 font-medium">Lot number</th>
               <th className="pb-2 pr-3 font-medium">Exp date</th>

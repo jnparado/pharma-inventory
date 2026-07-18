@@ -35,10 +35,14 @@ const REGISTER_COLUMN_CANDIDATES = [
   "brand",
   "brand_name",
   "unit",
+  "supplier",
   "supplier_id",
   "supplier_name",
   "rack_location",
   "location",
+  "rack",
+  "storage_location",
+  "shelf",
   "quantity",
   "expiry_date",
   "exp_date",
@@ -52,6 +56,24 @@ const REGISTER_COLUMN_CANDIDATES = [
   "received_date",
 ] as const;
 
+const PRODUCT_COLUMN_PROBE = [
+  "supplier",
+  "supplier_id",
+  "rack_location",
+  "location",
+  "rack",
+  "storage_location",
+  "shelf",
+] as const;
+
+const RACK_WRITE_COLUMNS = [
+  "rack_location",
+  "location",
+  "rack",
+  "storage_location",
+  "shelf",
+] as const;
+
 const INVENTORY_SELECTS = [
   "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, received_date, created_at, products(product_name, brand_name, selling_price, selling_price_ws)",
   "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, created_at, products(product_name, brand_name, selling_price, selling_price_ws)",
@@ -61,6 +83,46 @@ const INVENTORY_SELECTS = [
 
 let cachedProductColumns: Set<string> | null = null;
 let cachedFlatRegister: boolean | null = null;
+
+export function invalidateProductColumnCache(): void {
+  cachedProductColumns = null;
+}
+
+export async function productTableHasRackColumn(
+  supabase: SupabaseClient
+): Promise<boolean> {
+  const columns = await getProductColumns(supabase);
+  return RACK_WRITE_COLUMNS.some((col) => columns.has(col));
+}
+
+async function patchRackLocation(
+  supabase: SupabaseClient,
+  productId: string,
+  rack: string | null
+): Promise<void> {
+  if (!rack?.trim()) return;
+
+  for (const column of RACK_WRITE_COLUMNS) {
+    const { error } = await supabase
+      .from("products")
+      .update({ [column]: rack.trim() })
+      .eq("id", productId);
+
+    if (!error) return;
+    if (!missingColumn(error.message, column)) return;
+  }
+}
+
+async function refreshProductColumnProbe(
+  supabase: SupabaseClient,
+  columns: Set<string>
+): Promise<void> {
+  for (const col of PRODUCT_COLUMN_PROBE) {
+    if (columns.has(col)) continue;
+    const { error } = await supabase.from("products").select(col).limit(0);
+    if (!error) columns.add(col);
+  }
+}
 
 function missingColumn(message: string, column: string): boolean {
   const lower = message.toLowerCase();
@@ -73,21 +135,34 @@ function missingColumn(message: string, column: string): boolean {
   );
 }
 
+function readRackLocation(row: Record<string, unknown>): string | null {
+  for (const key of RACK_WRITE_COLUMNS) {
+    const value = row[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
 function buildRegisterPayload(
   input: ProductEntryInput
 ): Record<string, string | number | null> {
   const brand = input.brand.trim() || null;
   const unit = input.unit.trim() || "pcs";
   const rack = input.rack_location?.trim() || null;
+  const supplier = input.supplier_id?.trim() || null;
   return {
     product_name: input.product_name.trim(),
     lot_number: input.lot_number.trim(),
     brand,
     brand_name: brand,
     unit,
-    supplier_id: input.supplier_id,
+    supplier,
+    supplier_id: supplier,
     rack_location: rack,
     location: rack,
+    rack: rack,
     quantity: input.quantity,
     expiry_date: input.expiry_date,
     exp_date: input.expiry_date,
@@ -102,7 +177,25 @@ function buildRegisterPayload(
   };
 }
 
+function readSupplierId(row: Record<string, unknown>): string | null {
+  const idCol = row.supplier_id;
+  if (typeof idCol === "string" && idCol.trim()) return idCol.trim();
+  const supplier = row.supplier;
+  if (typeof supplier === "string" && supplier.trim()) return supplier.trim();
+  return null;
+}
+
 function readSupplierName(row: Record<string, unknown>): string | null {
+  const supplierEmbed = row.supplier;
+  if (
+    supplierEmbed &&
+    typeof supplierEmbed === "object" &&
+    !Array.isArray(supplierEmbed)
+  ) {
+    const name = (supplierEmbed as { company_name?: string }).company_name;
+    if (name?.trim()) return name.trim();
+  }
+
   const joined = row.suppliers as { company_name?: string } | null | undefined;
   const direct = row.supplier_name as string | null | undefined;
   return direct?.trim() || joined?.company_name?.trim() || null;
@@ -126,12 +219,9 @@ function mapProductRow(r: Record<string, unknown>): ProductInventoryLine {
     product_name: String(r.product_name ?? r.name ?? "Unknown"),
     brand: (r.brand as string | null) ?? (r.brand_name as string | null) ?? null,
     unit: (r.unit as string | null) ?? "pcs",
-    supplier_id: (r.supplier_id as string | null) ?? null,
+    supplier_id: readSupplierId(r),
     supplier_name: readSupplierName(r),
-    rack_location:
-      (r.rack_location as string | null) ??
-      (r.location as string | null) ??
-      null,
+    rack_location: readRackLocation(r),
     quantity: Number(r.quantity ?? r.qty ?? 0),
     lot_number: String(r.lot_number ?? r.batch_number ?? "—"),
     expiry_date:
@@ -147,11 +237,15 @@ function mapProductRow(r: Record<string, unknown>): ProductInventoryLine {
 async function getProductColumns(
   supabase: SupabaseClient
 ): Promise<Set<string>> {
-  if (cachedProductColumns) return cachedProductColumns;
+  if (cachedProductColumns) {
+    await refreshProductColumnProbe(supabase, cachedProductColumns);
+    return cachedProductColumns;
+  }
 
   const { data, error } = await supabase.from("products").select("*").limit(1);
   if (!error && data?.[0]) {
     cachedProductColumns = new Set(Object.keys(data[0]));
+    await refreshProductColumnProbe(supabase, cachedProductColumns);
     return cachedProductColumns;
   }
 
@@ -215,7 +309,18 @@ async function writeProductsRow(
       : await supabase.from("products").insert(row).select("id").single();
 
     if (!result.error && result.data) {
-      return { id: productId ?? String(result.data.id), error: null };
+      const savedId = productId ?? String(result.data.id);
+      const rack =
+        typeof payload.rack_location === "string"
+          ? payload.rack_location
+          : typeof payload.location === "string"
+            ? payload.location
+            : typeof payload.rack === "string"
+              ? payload.rack
+              : null;
+      await patchRackLocation(supabase, savedId, rack);
+      invalidateProductColumnCache();
+      return { id: savedId, error: null };
     }
 
     if (!result.error) {
@@ -331,7 +436,11 @@ async function fetchFromProductsOnly(
   supabase: SupabaseClient,
   productId?: string
 ): Promise<ProductInventoryLine[]> {
-  const selects = ["*, suppliers(company_name)", "*"] as const;
+  const selects = [
+    "*, supplier:suppliers(company_name)",
+    "*, suppliers(company_name)",
+    "*",
+  ] as const;
 
   for (const select of selects) {
     const buildQuery = () => {
@@ -358,7 +467,10 @@ async function fetchFromProductsOnly(
         mapProductRow(row as unknown as Record<string, unknown>)
       );
     }
-    if (!missingColumn(error.message, "suppliers")) {
+    if (
+      !missingColumn(error.message, "suppliers") &&
+      !missingColumn(error.message, "supplier")
+    ) {
       console.error("Failed to load products:", error.message);
       return [];
     }
@@ -531,8 +643,11 @@ export async function deleteProductEntry(
 
 export function parseProductEntryBody(body: Record<string, unknown>) {
   const quantity = Number(body.quantity);
-  const supplierId = String(body.supplier_id ?? "").trim();
-  const rack = String(body.rack_location ?? "").trim();
+  const supplierId =
+    String(body.supplier_id ?? body.supplier ?? "").trim() || null;
+  const rack =
+    String(body.rack_location ?? body.rack ?? body.location ?? "").trim() ||
+    null;
   const expiryRaw = String(body.expiry_date ?? "").trim();
   return {
     entry_date:
