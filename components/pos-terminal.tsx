@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ProductWithStock } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, stockQuantityLabel } from "@/lib/utils";
 import { Badge, Card, buttonClass, inputClass, labelClass } from "@/components/ui";
 
 type CartLine = {
@@ -162,7 +162,7 @@ export function PosTerminal({ products }: { products: ProductWithStock[] }) {
                   {p.product_name}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {p.sku} · {p.total_stock} {p.unit ?? "pcs"} ·{" "}
+                  {p.sku} · {p.total_stock} {stockQuantityLabel()} ·{" "}
                   {formatCurrency(p.selling_price)}
                 </p>
               </button>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { PurchaseOrder } from "@/lib/types";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDateTime, formatUnitPieces } from "@/lib/utils";
 
 export function PurchaseOrderView({
   order,
@@ -114,7 +114,7 @@ export function PurchaseOrderView({
                       {item.products?.product_name ?? "—"}
                     </p>
                     <p className="text-xs text-slate-400">
-                      {item.products?.unit ?? "pcs"}
+                      {formatUnitPieces(item.products?.unit ?? null)} pcs / unit
                     </p>
                   </td>
                   <td className="py-3 text-right text-slate-700">{item.quantity}</td>

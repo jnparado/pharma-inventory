@@ -90,3 +90,32 @@ export function formatDisplayName(name: string): string {
   const lastInitial = parts[parts.length - 1][0]?.toUpperCase() ?? "";
   return `${first} ${lastInitial}.`;
 }
+
+/** Parse UOM as piece count (legacy text like "pcs" → 1). */
+export function parseUnitPieces(unit: unknown): number | null {
+  const raw = String(unit ?? "").trim();
+  if (!raw) return 1;
+  if (/^\d+$/.test(raw)) {
+    const n = Number(raw);
+    return n > 0 ? n : null;
+  }
+  const lower = raw.toLowerCase();
+  if (lower === "pcs" || lower === "pc" || lower === "piece" || lower === "pieces") {
+    return 1;
+  }
+  const match = raw.match(/(\d+)/);
+  if (match) {
+    const n = Number(match[1]);
+    return n > 0 ? n : null;
+  }
+  return null;
+}
+
+export function formatUnitPieces(unit: string | null | undefined): number {
+  return parseUnitPieces(unit) ?? 1;
+}
+
+/** Label shown after stock quantity (inventory is counted in pieces). */
+export function stockQuantityLabel(): string {
+  return "pcs";
+}

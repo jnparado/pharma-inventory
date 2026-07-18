@@ -13,7 +13,7 @@ import {
   inputClass,
   labelClass,
 } from "@/components/ui";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, stockQuantityLabel } from "@/lib/utils";
 
 type ScanResult = {
   found: boolean;
@@ -73,8 +73,7 @@ export function ScanClient() {
                 </h3>
                 <p className="text-sm text-slate-500">
                   SKU: {result.product!.sku} · Stock:{" "}
-                  {result.product!.total_stock}{" "}
-                  {result.product!.unit ?? "pcs"} ·{" "}
+                  {result.product!.total_stock} {stockQuantityLabel()} ·{" "}
                   {formatCurrency(result.product!.selling_price)}
                 </p>
               </div>

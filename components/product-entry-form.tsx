@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { buttonClass, inputClass, labelClass } from "@/components/ui";
 import type { ProductInventoryLine, Supplier } from "@/lib/types";
+import { formatUnitPieces } from "@/lib/utils";
 
 type ProductEntry = {
   entry_date: string | null;
@@ -75,16 +76,22 @@ function ProductFields({
       </div>
       <div>
         <label className={labelClass} htmlFor="unit">
-          Unit of measure <span className="text-red-500">*</span>
+          UOM (pieces) <span className="text-red-500">*</span>
         </label>
         <input
           id="unit"
           name="unit"
+          type="number"
+          min={1}
+          step={1}
           required
-          defaultValue={editing?.unit ?? "pcs"}
-          placeholder="pcs, box, bottle"
+          defaultValue={formatUnitPieces(editing?.unit ?? "1")}
+          placeholder="30"
           className={inputClass}
         />
+        <p className="mt-1 text-xs text-slate-400">
+          Number of pieces per unit (e.g. 30 for a 30&apos;s pack)
+        </p>
       </div>
       <div>
         <label className={labelClass} htmlFor="supplier_id">
@@ -348,7 +355,7 @@ export function ProductEntryForm({
         const expiryInput = form.querySelector<HTMLInputElement>("#expiry_date");
         if (expiryInput) expiryInput.value = "";
         const unitInput = form.querySelector<HTMLInputElement>("#unit");
-        if (unitInput) unitInput.value = "pcs";
+        if (unitInput) unitInput.value = "1";
       }
 
       const message = data.message ?? "Saved";
