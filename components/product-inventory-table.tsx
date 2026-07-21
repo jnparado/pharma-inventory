@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ProductInventoryLine } from "@/lib/types";
-import { formatCurrency, formatDate, formatUnitPieces } from "@/lib/utils";
+import { formatCurrency, formatDate, formatProductUom } from "@/lib/utils";
 
 export function ProductInventoryTable({
   lines,
@@ -88,7 +88,7 @@ export function ProductInventoryTable({
               <th className="pb-2 pr-3 font-medium">Date</th>
               <th className="pb-2 pr-3 font-medium">Product name</th>
               <th className="pb-2 pr-3 font-medium">Brand</th>
-              <th className="pb-2 pr-3 font-medium">UOM (pcs)</th>
+              <th className="pb-2 pr-3 font-medium">UOM</th>
               <th className="pb-2 pr-3 font-medium">Supplier</th>
               <th className="pb-2 pr-3 font-medium">Rack / location</th>
               <th className="pb-2 pr-3 font-medium">Quantity</th>
@@ -113,7 +113,7 @@ export function ProductInventoryTable({
                   {line.brand ?? "—"}
                 </td>
                 <td className="py-3 pr-3 text-slate-600">
-                  {formatUnitPieces(line.unit)}
+                  {formatProductUom(line.unit)}
                 </td>
                 <td className="py-3 pr-3 text-slate-600">
                   {line.supplier_name ?? "—"}

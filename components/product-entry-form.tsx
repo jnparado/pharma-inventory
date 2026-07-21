@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { buttonClass, inputClass, labelClass } from "@/components/ui";
 import type { ProductInventoryLine, Supplier } from "@/lib/types";
-import { formatUnitPieces } from "@/lib/utils";
+import { normalizeProductUom, PRODUCT_UOM_OPTIONS } from "@/lib/utils";
 
 type ProductEntry = {
   entry_date: string | null;
@@ -76,22 +76,24 @@ function ProductFields({
       </div>
       <div>
         <label className={labelClass} htmlFor="unit">
-          UOM (pieces) <span className="text-red-500">*</span>
+          Unit of Measure (UOM) <span className="text-red-500">*</span>
         </label>
-        <input
+        <select
           id="unit"
           name="unit"
-          type="number"
-          min={1}
-          step={1}
           required
-          defaultValue={formatUnitPieces(editing?.unit ?? "1")}
-          placeholder="30"
+          defaultValue={normalizeProductUom(editing?.unit) ?? "PCS"}
           className={inputClass}
-        />
-        <p className="mt-1 text-xs text-slate-400">
-          Number of pieces per unit (e.g. 30 for a 30&apos;s pack)
-        </p>
+        >
+          <option value="" disabled>
+            Select UOM…
+          </option>
+          {PRODUCT_UOM_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </div>
       <div>
         <label className={labelClass} htmlFor="supplier_id">
@@ -354,8 +356,8 @@ export function ProductEntryForm({
         if (dateInput) dateInput.value = today;
         const expiryInput = form.querySelector<HTMLInputElement>("#expiry_date");
         if (expiryInput) expiryInput.value = "";
-        const unitInput = form.querySelector<HTMLInputElement>("#unit");
-        if (unitInput) unitInput.value = "1";
+        const unitInput = form.querySelector<HTMLSelectElement>("#unit");
+        if (unitInput) unitInput.value = "PCS";
       }
 
       const message = data.message ?? "Saved";
