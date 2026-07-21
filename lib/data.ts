@@ -27,6 +27,7 @@ import type {
   PurchaseOrder,
   SaleWithItems,
   SalesReportSummary,
+  StockTransfer,
   User,
   Notification,
 } from "@/lib/types";
@@ -405,24 +406,25 @@ export async function getBranches() {
   return data;
 }
 
-export async function getStockTransfers() {
+export async function getStockTransfers(): Promise<StockTransfer[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("stock_transfers")
-    .select("*, from_branch_info:branches!stock_transfers_from_branch_fkey(name), to_branch_info:branches!stock_transfers_to_branch_fkey(name)")
-    .order("created_at", { ascending: false })
-    .limit(50);
-  if (error) {
-    const fallback = await supabase
+  const selects: string[] = [
+    "*, from_branch_info:branches!stock_transfers_from_branch_fkey(name), to_branch_info:branches!stock_transfers_to_branch_fkey(name), products(product_name, sku)",
+    "*, from_branch_info:branches!stock_transfers_from_branch_fkey(name), to_branch_info:branches!stock_transfers_to_branch_fkey(name)",
+    "*",
+  ];
+
+  let lastError = "";
+  for (const select of selects) {
+    const { data, error } = await supabase
       .from("stock_transfers")
-      .select("*")
+      .select(select)
       .order("created_at", { ascending: false })
       .limit(50);
-    if (fallback.error)
-      throw new Error(`Failed to load transfers: ${fallback.error.message}`);
-    return fallback.data;
+    if (!error) return (data ?? []) as unknown as StockTransfer[];
+    lastError = error.message;
   }
-  return data;
+  throw new Error(`Failed to load transfers: ${lastError}`);
 }
 
 export async function getPurchaseOrders() {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ProductWithStock } from "@/lib/types";
 import { formatCurrency, stockQuantityLabel } from "@/lib/utils";
@@ -155,7 +156,7 @@ export function PosTerminal({ products }: { products: ProductWithStock[] }) {
                 key={p.id}
                 type="button"
                 onClick={() => addToCart(p)}
-                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition-colors hover:border-teal-300 hover:bg-teal-50"
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition-colors hover:border-blue-300 hover:bg-blue-50"
               >
                 <p className="text-sm font-medium text-slate-800">
                   {p.product_name}
@@ -219,7 +220,7 @@ export function PosTerminal({ products }: { products: ProductWithStock[] }) {
           <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
             <div className="flex justify-between text-lg font-semibold">
               <span>Total</span>
-              <span className="text-teal-700">{formatCurrency(subtotal)}</span>
+              <span className="text-blue-700">{formatCurrency(subtotal)}</span>
             </div>
 
             <div>
@@ -259,7 +260,7 @@ export function PosTerminal({ products }: { products: ProductWithStock[] }) {
             {error && <p className="text-sm text-red-600">{error}</p>}
 
             {receipt && (
-              <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm">
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm">
                 <Badge tone="success">Sale complete</Badge>
                 <p className="mt-2 font-medium">Receipt: {receipt.receiptNo}</p>
                 <p className="text-xs text-slate-500">Invoice: {receipt.invoice}</p>
@@ -267,6 +268,12 @@ export function PosTerminal({ products }: { products: ProductWithStock[] }) {
                 {receipt.change > 0 && (
                   <p>Change: {formatCurrency(receipt.change)}</p>
                 )}
+                <Link
+                  href={`/receipt/${receipt.saleId}`}
+                  className="mt-2 inline-block rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700"
+                >
+                  View / print receipt →
+                </Link>
               </div>
             )}
 

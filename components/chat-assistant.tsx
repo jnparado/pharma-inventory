@@ -53,7 +53,7 @@ export function ChatAssistant() {
             key={i}
             className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
               m.role === "user"
-                ? "ml-auto bg-teal-600 text-white"
+                ? "ml-auto bg-blue-600 text-white"
                 : "bg-slate-100 text-slate-800"
             }`}
           >

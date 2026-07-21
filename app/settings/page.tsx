@@ -38,7 +38,7 @@ export default async function SettingsPage() {
         <Card title="Signed in">
           {activeUser ? (
             <div className="flex items-center gap-4">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-100 text-sm font-semibold text-teal-700">
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 text-sm font-semibold text-blue-700">
                 {getInitials(activeUser.full_name)}
               </span>
               <div className="min-w-0 flex-1">
@@ -57,7 +57,7 @@ export default async function SettingsPage() {
             <p className="text-sm text-slate-600">
               Signed in as <strong>{authEmail}</strong>, but no staff profile
               matches this email. Ask an admin to create your account in{" "}
-              <Link href="/users" className="text-teal-600 hover:underline">
+              <Link href="/users" className="text-blue-600 hover:underline">
                 User Accounts
               </Link>
               .

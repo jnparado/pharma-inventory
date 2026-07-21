@@ -51,7 +51,7 @@ export default async function UsersPage({
           <p className="text-sm text-slate-600">
             Admin access is required to manage user accounts. Switch to an admin
             profile in{" "}
-            <Link href="/settings" className="font-medium text-teal-600 hover:underline">
+            <Link href="/settings" className="font-medium text-blue-600 hover:underline">
               Settings
             </Link>
             .
@@ -107,7 +107,7 @@ export default async function UsersPage({
                         <input type="hidden" name="auth_id" value={u.id} />
                         <button
                           type="submit"
-                          className="text-xs font-medium text-teal-600 hover:underline"
+                          className="text-xs font-medium text-blue-600 hover:underline"
                         >
                           Link profile
                         </button>
@@ -310,7 +310,7 @@ export default async function UsersPage({
                     <tr key={u.id}>
                       <td className="py-3">
                         <div className="flex items-center gap-3">
-                          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-100 text-xs font-semibold text-teal-700">
+                          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-xs font-semibold text-blue-700">
                             {getInitials(u.full_name)}
                           </span>
                           <span>
@@ -340,7 +340,7 @@ export default async function UsersPage({
                       <td className="py-3 text-right whitespace-nowrap">
                         <Link
                           href={`/users?edit=${u.id}`}
-                          className="mr-3 text-xs font-medium text-teal-600 hover:underline"
+                          className="mr-3 text-xs font-medium text-blue-600 hover:underline"
                         >
                           Edit
                         </Link>

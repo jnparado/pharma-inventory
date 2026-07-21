@@ -106,7 +106,7 @@ export default async function ForecastPage() {
                     </td>
                     <td className="py-3">{f.current_stock}</td>
                     <td className="py-3">{f.predicted_30_day_demand}</td>
-                    <td className="py-3 font-semibold text-teal-700">
+                    <td className="py-3 font-semibold text-blue-700">
                       {f.recommended_reorder_qty || "—"}
                     </td>
                     <td className="py-3">{f.reorder_by}</td>

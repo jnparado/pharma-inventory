@@ -48,7 +48,7 @@ export default async function ProfilePage({
         <Card>
           <p className="text-sm text-slate-600">
             You are not signed in.{" "}
-            <Link href="/login" className="font-medium text-teal-600 hover:underline">
+            <Link href="/login" className="font-medium text-blue-600 hover:underline">
               Go to login
             </Link>
             .
@@ -66,7 +66,7 @@ export default async function ProfilePage({
           <p className="text-sm text-slate-600">
             Signed in as <strong>{authEmail}</strong>, but no staff profile is
             linked to this email. Ask an admin to create your account in{" "}
-            <Link href="/users" className="font-medium text-teal-600 hover:underline">
+            <Link href="/users" className="font-medium text-blue-600 hover:underline">
               User Accounts
             </Link>
             .
@@ -87,7 +87,7 @@ export default async function ProfilePage({
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Account overview">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-teal-100 text-xl font-bold text-teal-700">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-xl font-bold text-blue-700">
               {getInitials(user.full_name)}
             </div>
             <div className="min-w-0">

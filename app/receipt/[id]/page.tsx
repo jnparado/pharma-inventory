@@ -30,7 +30,7 @@ export default async function ReceiptPage({
         <PageHeader title="Receipt not found" />
         <p className="text-sm text-slate-600">
           This receipt does not exist.{" "}
-          <Link href="/reports" className="text-teal-600 hover:underline">
+          <Link href="/reports" className="text-blue-600 hover:underline">
             Back to reports
           </Link>
         </p>
@@ -45,7 +45,7 @@ export default async function ReceiptPage({
         description="Sales invoice converted to receipt (OR)."
       />
       <FlashMessage success={success} />
-      <ReceiptView sale={sale} showActions={false} />
+      <ReceiptView sale={sale} showActions />
     </>
   );
 }

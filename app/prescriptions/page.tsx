@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import type { PrescriptionMatch } from "@/lib/types";
+import { useCallback, useEffect, useState } from "react";
+import type { Prescription, PrescriptionMatch } from "@/lib/types";
+import { formatDateTime } from "@/lib/utils";
 import {
   Badge,
   Card,
+  EmptyState,
   PageHeader,
   buttonClass,
   inputClass,
@@ -21,6 +23,28 @@ export default function PrescriptionsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState("");
+  const [history, setHistory] = useState<Prescription[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetch("/api/prescriptions");
+      const data = (await res.json()) as {
+        prescriptions?: Prescription[];
+      };
+      if (res.ok && data.prescriptions) {
+        setHistory(data.prescriptions);
+      }
+    } catch {
+      // history is non-critical; validation/saving still work
+    } finally {
+      setHistoryLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
 
   async function validate() {
     setLoading(true);
@@ -86,7 +110,7 @@ export default function PrescriptionsPage() {
             </button>
             {error && <p className="text-sm text-red-600">{error}</p>}
             {success && (
-              <p className="text-sm text-teal-700">{success}</p>
+              <p className="text-sm text-blue-700">{success}</p>
             )}
 
             <div className="border-t border-slate-100 pt-4">
@@ -112,6 +136,7 @@ export default function PrescriptionsPage() {
                     };
                     if (!res.ok) throw new Error(data.error);
                     setSuccess(data.message ?? "Prescription saved");
+                    void loadHistory();
                   } catch (e) {
                     setError((e as Error).message);
                   } finally {
@@ -154,7 +179,7 @@ export default function PrescriptionsPage() {
                       <p className="text-xs font-medium text-slate-400">
                         Suggested alternatives
                       </p>
-                      <ul className="mt-1 text-sm text-teal-700">
+                      <ul className="mt-1 text-sm text-blue-700">
                         {m.alternatives.map((alt) => (
                           <li key={alt}>• {alt}</li>
                         ))}
@@ -167,6 +192,41 @@ export default function PrescriptionsPage() {
           )}
         </Card>
       </div>
+
+      <Card title={`Saved prescriptions (${history.length})`} className="mt-6">
+        {!historyLoaded ? (
+          <EmptyState message="Loading saved prescriptions…" />
+        ) : history.length === 0 ? (
+          <EmptyState message="No prescriptions saved yet." />
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {history.map((rx) => (
+              <li key={rx.id} className="py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-slate-800">
+                    {rx.doctor_name ? `Dr. record — ${rx.doctor_name}` : "Prescription record"}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Badge tone={rx.status === "processed" ? "success" : "default"}>
+                      {rx.status ?? "saved"}
+                    </Badge>
+                    {rx.uploaded_at && (
+                      <span className="text-xs text-slate-400">
+                        {formatDateTime(rx.uploaded_at)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {rx.prescription_text && (
+                  <p className="mt-1 whitespace-pre-line text-xs text-slate-500">
+                    {rx.prescription_text}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </>
   );
 }

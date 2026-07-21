@@ -123,10 +123,13 @@ export type StockTransfer = {
   id: string;
   from_branch: string | null;
   to_branch: string | null;
+  product_id?: string | null;
+  quantity?: number | null;
   status: string | null;
   created_at: string | null;
   from_branch_info?: Pick<Branch, "name"> | null;
   to_branch_info?: Pick<Branch, "name"> | null;
+  products?: Pick<Product, "product_name" | "sku"> | null;
 };
 
 export type PurchaseOrder = {
@@ -154,6 +157,7 @@ export type Prescription = {
   id: string;
   customer_id: string | null;
   doctor_name: string | null;
+  prescription_text?: string | null;
   prescription_image_url: string | null;
   uploaded_at: string | null;
   status: string | null;

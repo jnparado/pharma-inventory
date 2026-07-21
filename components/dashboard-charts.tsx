@@ -112,23 +112,3 @@ export function DashboardCharts({
   );
 }
 
-export function Sparkline({ value, max }: { value: number; max: number }) {
-  const bars = [0.4, 0.7, 0.5, 0.9, 0.6, 1].map(
-    (f) => Math.max(4, (value / Math.max(max, 1)) * 24 * f)
-  );
-  return (
-    <svg width="56" height="24" className="inline-block shrink-0">
-      {bars.map((h, i) => (
-        <rect
-          key={i}
-          x={i * 9 + 1}
-          y={24 - h}
-          width={6}
-          height={h}
-          rx={2}
-          fill="#86efac"
-        />
-      ))}
-    </svg>
-  );
-}

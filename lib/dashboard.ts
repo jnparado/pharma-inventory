@@ -2,10 +2,21 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getProductInventoryLines,
   getProductsWithStock,
+  getPurchaseOrders,
 } from "@/lib/data";
 import { getSalesMetrics } from "@/lib/sales-metrics";
 import { formatCurrency, expiryStatus } from "@/lib/utils";
-import type { DashboardInventoryRow } from "@/lib/types";
+import type { DashboardInventoryRow, SaleWithItems } from "@/lib/types";
+
+export type DashboardOrderRow = {
+  id: string;
+  po_number: string;
+  supplier: string | null;
+  status: string | null;
+  items_count: number;
+  total: number;
+  created_at: string | null;
+};
 
 const MONTHS = [
   "Jan",
@@ -37,6 +48,93 @@ function toDashboardRow(line: Awaited<
   };
 }
 
+/**
+ * Month-to-date profit from actual sale items: revenue minus batch/product
+ * cost. Items with no recorded cost fall back to an assumed 35% margin.
+ */
+async function computeMonthProfit(
+  supabase: ReturnType<typeof createAdminClient>,
+  sales: SaleWithItems[]
+): Promise<number> {
+  const startOfMonth = new Date(
+    new Date().getFullYear(),
+    new Date().getMonth(),
+    1
+  );
+  const items = sales
+    .filter((s) => s.created_at && new Date(s.created_at) >= startOfMonth)
+    .flatMap((s) => s.sale_items ?? []);
+  if (items.length === 0) return 0;
+
+  const batchIds = [
+    ...new Set(items.map((i) => i.batch_id).filter((id): id is string => !!id)),
+  ];
+  const productIds = [
+    ...new Set(
+      items.map((i) => i.product_id).filter((id): id is string => !!id)
+    ),
+  ];
+
+  const costByBatch = new Map<string, number>();
+  if (batchIds.length > 0) {
+    const { data } = await supabase
+      .from("product_batches")
+      .select("id, purchase_price")
+      .in("id", batchIds);
+    for (const row of data ?? []) {
+      if (row.purchase_price != null) {
+        costByBatch.set(String(row.id), Number(row.purchase_price));
+      }
+    }
+  }
+
+  const costByProduct = new Map<string, number>();
+  if (productIds.length > 0) {
+    for (const select of ["id, cost, purchase_price", "id, purchase_price", "id, cost"] as const) {
+      const { data, error } = await supabase
+        .from("products")
+        .select(select)
+        .in("id", productIds);
+      if (error) continue;
+      for (const raw of (data ?? []) as unknown as Record<string, unknown>[]) {
+        const cost = raw.cost ?? raw.purchase_price;
+        if (cost != null) costByProduct.set(String(raw.id), Number(cost));
+      }
+      break;
+    }
+  }
+
+  let profit = 0;
+  for (const item of items) {
+    const revenue =
+      Number(item.subtotal) || item.quantity * Number(item.unit_price);
+    const unitCost =
+      (item.batch_id ? costByBatch.get(item.batch_id) : undefined) ??
+      (item.product_id ? costByProduct.get(item.product_id) : undefined) ??
+      Number(item.unit_price) * 0.65;
+    profit += revenue - item.quantity * unitCost;
+  }
+  return profit;
+}
+
+function toOrderRow(
+  po: Awaited<ReturnType<typeof getPurchaseOrders>>[number]
+): DashboardOrderRow {
+  const orderItems = po.purchase_order_items ?? [];
+  return {
+    id: po.id,
+    po_number: po.po_number,
+    supplier: po.suppliers?.company_name ?? null,
+    status: po.status,
+    items_count: orderItems.length,
+    total: orderItems.reduce(
+      (sum, item) => sum + item.quantity * Number(item.unit_cost ?? 0),
+      0
+    ),
+    created_at: po.created_at,
+  };
+}
+
 function emptyDashboardData() {
   return {
     customerCount: 0,
@@ -44,8 +142,7 @@ function emptyDashboardData() {
     totalProfit: 0,
     outOfStock: 0,
     expiringList: [] as DashboardInventoryRow[],
-    maxExpiringQty: 1,
-    recentOrders: [] as DashboardInventoryRow[],
+    recentOrders: [] as DashboardOrderRow[],
     monthlySales: MONTHS.map((month) => ({ month, sales: 0 })),
     todayBreakdown: [
       { name: "Cash", value: 0, color: "#fbbf24" },
@@ -60,12 +157,14 @@ function emptyDashboardData() {
 export async function getDashboardData() {
   try {
     const supabase = createAdminClient();
-    const [products, metrics, inventory, customersRes] = await Promise.all([
-      getProductsWithStock(),
-      getSalesMetrics(),
-      getProductInventoryLines(),
-      supabase.from("customers").select("id", { count: "exact", head: true }),
-    ]);
+    const [products, metrics, inventory, customersRes, purchaseOrders] =
+      await Promise.all([
+        getProductsWithStock(),
+        getSalesMetrics(),
+        getProductInventoryLines(),
+        supabase.from("customers").select("id", { count: "exact", head: true }),
+        getPurchaseOrders().catch(() => []),
+      ]);
 
     const sales = metrics.sales;
     const summary = metrics.summary;
@@ -85,12 +184,7 @@ export async function getDashboardData() {
       .slice(0, 6)
       .map(toDashboardRow);
 
-    const maxExpiringQty = Math.max(
-      ...expiringList.map((row) => row.quantity),
-      1
-    );
-
-    const recentOrders = inventory.slice(0, 6).map(toDashboardRow);
+    const recentOrders = purchaseOrders.slice(0, 6).map(toOrderRow);
 
     const monthlySales = MONTHS.map((month, i) => {
       const total = sales
@@ -140,20 +234,21 @@ export async function getDashboardData() {
             { name: "Card", value: 0, color: "#ec4899" },
           ];
 
-    const estimatedProfit = summary.month_total * 0.35;
+    const totalProfit = await computeMonthProfit(supabase, sales).catch(
+      () => summary.month_total * 0.35
+    );
 
     return {
       customerCount,
       totalSales: sales.length,
-      totalProfit: estimatedProfit,
+      totalProfit,
       outOfStock,
       expiringList,
-      maxExpiringQty,
       recentOrders,
       monthlySales,
       todayBreakdown,
       todayTotal,
-      formattedProfit: formatCurrency(estimatedProfit),
+      formattedProfit: formatCurrency(totalProfit),
     };
   } catch (e) {
     console.error("getDashboardData:", e);

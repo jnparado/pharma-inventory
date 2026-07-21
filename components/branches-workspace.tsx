@@ -24,16 +24,25 @@ type TransferRow = StockTransfer & {
   to_branch_info?: { name: string } | null;
 };
 
+type TransferableProduct = {
+  id: string;
+  product_name: string;
+  sku: string;
+  total_stock: number;
+};
+
 export function BranchesWorkspace({
   initialBranches,
   initialTransfers,
   initialBranchStock,
+  products,
   initialSuccess,
   initialError,
 }: {
   initialBranches: Branch[];
   initialTransfers: TransferRow[];
   initialBranchStock: BranchStockSummary[];
+  products: TransferableProduct[];
   initialSuccess?: string;
   initialError?: string;
 }) {
@@ -123,6 +132,7 @@ export function BranchesWorkspace({
       if (data.transfer) {
         const fromId = data.transfer.from_branch;
         const toId = data.transfer.to_branch;
+        const product = products.find((p) => p.id === data.transfer!.product_id);
         const enriched: TransferRow = {
           ...data.transfer,
           from_branch_info: {
@@ -132,10 +142,14 @@ export function BranchesWorkspace({
           to_branch_info: {
             name: branches.find((b) => b.id === toId)?.name ?? "—",
           },
+          products: product
+            ? { product_name: product.product_name, sku: product.sku }
+            : null,
         };
         setTransfers((prev) => [enriched, ...prev]);
       }
       setSuccess(data.message ?? "Transfer request created");
+      form.reset();
       startTransition(() => router.refresh());
     } catch (err) {
       setError((err as Error).message || "Could not create transfer");
@@ -151,7 +165,6 @@ export function BranchesWorkspace({
     setTransfers((list) =>
       list.map((t) => (t.id === id ? { ...t, status: "completed" } : t))
     );
-    setSuccess("Transfer updated");
 
     try {
       const res = await fetch("/api/branches", {
@@ -159,13 +172,14 @@ export function BranchesWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, status: "completed" }),
       });
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as { error?: string; message?: string };
       if (!res.ok) {
         setTransfers(prev);
         setSuccess("");
         setError(data.error ?? "Could not update transfer");
         return;
       }
+      setSuccess(data.message ?? "Transfer updated");
       startTransition(() => router.refresh());
     } catch (err) {
       setTransfers(prev);
@@ -179,7 +193,7 @@ export function BranchesWorkspace({
   return (
     <>
       {success && (
-        <div className="mb-4 rounded-lg border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-teal-800">
+        <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
           {success}
         </div>
       )}
@@ -247,6 +261,31 @@ export function BranchesWorkspace({
                   ))}
                 </select>
               </div>
+              <div>
+                <label className={labelClass}>Product</label>
+                <select name="product_id" required className={inputClass} defaultValue="">
+                  <option value="" disabled>
+                    Select product…
+                  </option>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.product_name} ({p.sku}) — {p.total_stock} in stock
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Quantity</label>
+                <input
+                  name="quantity"
+                  type="number"
+                  min={1}
+                  step={1}
+                  required
+                  placeholder="10"
+                  className={inputClass}
+                />
+              </div>
               <button
                 type="submit"
                 disabled={transferLoading}
@@ -297,11 +336,13 @@ export function BranchesWorkspace({
           <EmptyState message="No transfer requests yet." />
         ) : (
           <TableScroll>
-            <table className="w-full min-w-[520px] text-sm">
+            <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase text-slate-400">
                   <th className="pb-2">From</th>
                   <th className="pb-2">To</th>
+                  <th className="pb-2">Product</th>
+                  <th className="pb-2">Qty</th>
                   <th className="pb-2">Status</th>
                   <th className="pb-2">Actions</th>
                 </tr>
@@ -311,6 +352,13 @@ export function BranchesWorkspace({
                   <tr key={t.id}>
                     <td className="py-2">{t.from_branch_info?.name ?? "—"}</td>
                     <td className="py-2">{t.to_branch_info?.name ?? "—"}</td>
+                    <td className="py-2">
+                      {t.products?.product_name ??
+                        products.find((p) => p.id === t.product_id)
+                          ?.product_name ??
+                        "—"}
+                    </td>
+                    <td className="py-2">{t.quantity ?? "—"}</td>
                     <td className="py-2">
                       <Badge
                         tone={
@@ -330,7 +378,7 @@ export function BranchesWorkspace({
                           type="button"
                           disabled={updatingTransferId === t.id}
                           onClick={() => completeTransfer(t.id)}
-                          className="text-xs font-medium text-teal-600 hover:underline disabled:opacity-50"
+                          className="text-xs font-medium text-blue-600 hover:underline disabled:opacity-50"
                         >
                           {updatingTransferId === t.id
                             ? "Updating…"

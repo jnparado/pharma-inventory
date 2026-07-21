@@ -3,6 +3,7 @@ import { PageHeader, SetupNotice } from "@/components/ui";
 import {
   getBranchStockSummary,
   getBranches,
+  getProductsWithStock,
   getStockTransfers,
   isSupabaseConfigured,
 } from "@/lib/data";
@@ -23,10 +24,11 @@ export default async function BranchesPage({
     );
   }
 
-  const [branches, transfers, branchStock] = await Promise.all([
+  const [branches, transfers, branchStock, products] = await Promise.all([
     getBranches(),
     getStockTransfers(),
     getBranchStockSummary(),
+    getProductsWithStock(),
   ]);
 
   return (
@@ -39,6 +41,12 @@ export default async function BranchesPage({
         initialBranches={branches}
         initialTransfers={transfers ?? []}
         initialBranchStock={branchStock}
+        products={products.map((p) => ({
+          id: p.id,
+          product_name: p.product_name,
+          sku: p.sku,
+          total_stock: p.total_stock,
+        }))}
         initialSuccess={success}
         initialError={error}
       />

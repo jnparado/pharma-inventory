@@ -250,7 +250,7 @@ export function SuppliersWorkspace({
   return (
     <>
       {success && (
-        <div className="mb-4 rounded-lg border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-teal-800">
+        <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
           {success}
         </div>
       )}
@@ -313,7 +313,7 @@ export function SuppliersWorkspace({
                       <td className="py-3 text-right whitespace-nowrap">
                         <Link
                           href={`/suppliers?edit=${s.id}`}
-                          className="mr-3 text-xs font-medium text-teal-600 hover:underline"
+                          className="mr-3 text-xs font-medium text-blue-600 hover:underline"
                         >
                           Edit
                         </Link>

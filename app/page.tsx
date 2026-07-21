@@ -2,6 +2,7 @@ import Link from "next/link";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { KpiCard } from "@/components/kpi-card";
 import { SetupNotice, TableScroll } from "@/components/ui";
+import { Badge } from "@/components/ui";
 import { getDashboardData } from "@/lib/dashboard";
 import { isSupabaseConfigured } from "@/lib/data";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -38,7 +39,7 @@ export default async function DashboardPage() {
           label="Total Customer"
           value={data.customerCount}
           tone="blue"
-          href="/prescriptions"
+          href="/customers"
           icon={
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -140,7 +141,7 @@ export default async function DashboardPage() {
               Recent Orders
             </h3>
             <Link
-              href="/products"
+              href="/orders"
               className="shrink-0 text-xs font-medium text-teal-600 hover:underline"
             >
               See All
@@ -150,36 +151,52 @@ export default async function DashboardPage() {
             <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="text-left text-xs text-slate-400">
-                {tableHeaders}
+                <th className="pb-3 font-medium">PO number</th>
+                <th className="pb-3 font-medium">Supplier</th>
+                <th className="pb-3 font-medium">Items</th>
+                <th className="pb-3 font-medium">Total</th>
+                <th className="pb-3 font-medium">Status</th>
+                <th className="pb-3 font-medium">Date</th>
               </tr>
             </thead>
             <tbody>
               {data.recentOrders.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-slate-400">
-                    No products yet
+                    No purchase orders yet
                   </td>
                 </tr>
               ) : (
                 data.recentOrders.map((row) => (
                   <tr key={row.id} className="border-t border-slate-50">
                     <td className="py-3 font-medium text-slate-700">
-                      {row.product_name}
+                      <Link
+                        href={`/orders/${row.id}`}
+                        className="hover:text-teal-600 hover:underline"
+                      >
+                        {row.po_number}
+                      </Link>
                     </td>
                     <td className="py-3 text-slate-500">
                       {row.supplier ?? "—"}
                     </td>
-                    <td className="py-3">{row.quantity}</td>
+                    <td className="py-3">{row.items_count}</td>
+                    <td className="py-3">{formatCurrency(row.total)}</td>
+                    <td className="py-3">
+                      <Badge
+                        tone={
+                          row.status === "received"
+                            ? "success"
+                            : row.status === "cancelled"
+                              ? "danger"
+                              : "warning"
+                        }
+                      >
+                        {row.status ?? "pending"}
+                      </Badge>
+                    </td>
                     <td className="py-3 text-slate-500">
-                      {row.expiry_date ? formatDate(row.expiry_date) : "—"}
-                    </td>
-                    <td className="py-3">
-                      {row.selling_price_ws != null
-                        ? formatCurrency(row.selling_price_ws)
-                        : "—"}
-                    </td>
-                    <td className="py-3">
-                      {formatCurrency(row.selling_price_retail)}
+                      {row.created_at ? formatDate(row.created_at) : "—"}
                     </td>
                   </tr>
                 ))

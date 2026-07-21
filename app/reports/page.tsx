@@ -90,7 +90,7 @@ export default async function ReportsPage() {
             </div>
             <div className="flex justify-between border-t border-slate-100 pt-3">
               <dt className="font-medium text-slate-700">All-time revenue</dt>
-              <dd className="font-semibold text-teal-700">
+              <dd className="font-semibold text-blue-700">
                 {formatCurrency(summary.all_time_total)}
               </dd>
             </div>
@@ -120,7 +120,7 @@ export default async function ReportsPage() {
                     <td className="py-3">
                       <Link
                         href={`/receipt/${sale.id}`}
-                        className="font-mono text-xs font-medium text-teal-600 hover:underline"
+                        className="font-mono text-xs font-medium text-blue-600 hover:underline"
                       >
                         {displayReceiptNumber(sale)}
                       </Link>

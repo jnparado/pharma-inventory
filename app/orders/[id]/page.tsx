@@ -36,7 +36,7 @@ export default async function PurchaseOrderPrintPage({
       <PurchaseOrderView order={order} />
       <p className="mx-auto mt-4 max-w-2xl text-center text-sm text-slate-500 print:hidden">
         After printing, return to{" "}
-        <Link href="/orders" className="font-medium text-teal-600 hover:underline">
+        <Link href="/orders" className="font-medium text-blue-600 hover:underline">
           Purchase Orders
         </Link>{" "}
         to approve or mark delivered.

@@ -208,10 +208,10 @@ export function PurchaseOrderDialog({
 
             {success ? (
               <div className="space-y-4 px-5 py-6">
-                <div className="rounded-lg border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-teal-800">
+                <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
                   {success.message}
                   {success.invoiceNumber && (
-                    <p className="mt-2 font-mono text-xs text-teal-900">
+                    <p className="mt-2 font-mono text-xs text-blue-900">
                       Sales Invoice: {success.invoiceNumber}
                     </p>
                   )}
@@ -306,7 +306,7 @@ export function PurchaseOrderDialog({
                         <button
                           type="button"
                           onClick={() => setLines((prev) => [...prev, emptyLine()])}
-                          className="text-sm font-medium text-teal-600 hover:underline"
+                          className="text-sm font-medium text-blue-600 hover:underline"
                         >
                           + Add line
                         </button>

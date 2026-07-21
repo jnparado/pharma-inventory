@@ -59,7 +59,11 @@ export function TopBar({
             </svg>
           </button>
 
-          <div className="relative min-w-0 w-full max-w-xl lg:max-w-2xl">
+          <form
+            action="/search"
+            className="relative min-w-0 w-full max-w-xl lg:max-w-2xl"
+            role="search"
+          >
             <svg
               className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
               fill="none"
@@ -75,10 +79,11 @@ export function TopBar({
             </svg>
             <input
               type="search"
+              name="q"
               placeholder="Search products, SKU, invoices…"
               className="w-full rounded-xl border border-slate-600 bg-[#10172A] py-2 pl-10 pr-3 text-sm text-slate-200 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             />
-          </div>
+          </form>
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">

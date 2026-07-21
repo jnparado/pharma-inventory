@@ -75,7 +75,7 @@ function BatchTable({
                   <td className="py-3 whitespace-nowrap">
                     {discount > 0 && price > 0 ? (
                       <>
-                        <span className="font-medium text-teal-700">
+                        <span className="font-medium text-blue-700">
                           {formatCurrency(price * (1 - discount / 100))}
                         </span>
                         <span className="ml-1.5 text-xs text-slate-400 line-through">
