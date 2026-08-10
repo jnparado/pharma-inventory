@@ -63,7 +63,7 @@ export default async function ProductsPage({
     <>
       <PageHeader
         title="Product"
-        description="Inventory register — date, product, brand, UOM, supplier, location, quantity, lot, expiry, cost, and wholesale/retail prices."
+        description="Inventory register — date, product, supplier, brand, lot, expiry, quantity, UOM, cost, and wholesale/retail prices."
       />
       {loadError && !success && <FlashMessage error={loadError} />}
 

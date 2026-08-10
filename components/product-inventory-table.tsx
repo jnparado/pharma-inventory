@@ -87,13 +87,12 @@ export function ProductInventoryTable({
             <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
               <th className="pb-2 pr-3 font-medium">Date</th>
               <th className="pb-2 pr-3 font-medium">Product name</th>
-              <th className="pb-2 pr-3 font-medium">Brand</th>
-              <th className="pb-2 pr-3 font-medium">UOM (pcs)</th>
               <th className="pb-2 pr-3 font-medium">Supplier</th>
-              <th className="pb-2 pr-3 font-medium">Rack / location</th>
-              <th className="pb-2 pr-3 font-medium">Quantity</th>
+              <th className="pb-2 pr-3 font-medium">Brand</th>
               <th className="pb-2 pr-3 font-medium">Lot number</th>
               <th className="pb-2 pr-3 font-medium">Exp date</th>
+              <th className="pb-2 pr-3 font-medium">Quantity</th>
+              <th className="pb-2 pr-3 font-medium">UOM (pcs)</th>
               <th className="pb-2 pr-3 font-medium">Cost</th>
               <th className="pb-2 pr-3 font-medium">Selling price WS</th>
               <th className="pb-2 pr-3 font-medium">Selling price retail</th>
@@ -110,23 +109,20 @@ export function ProductInventoryTable({
                   {line.product_name}
                 </td>
                 <td className="py-3 pr-3 text-slate-600">
-                  {line.brand ?? "—"}
-                </td>
-                <td className="py-3 pr-3 text-slate-600">
-                  {formatUnitPieces(line.unit)}
-                </td>
-                <td className="py-3 pr-3 text-slate-600">
                   {line.supplier_name ?? "—"}
                 </td>
                 <td className="py-3 pr-3 text-slate-600">
-                  {line.rack_location ?? "—"}
+                  {line.brand ?? "—"}
                 </td>
-                <td className="py-3 pr-3">{line.quantity}</td>
                 <td className="py-3 pr-3 font-mono text-xs text-slate-500">
                   {line.lot_number}
                 </td>
                 <td className="py-3 pr-3 whitespace-nowrap text-slate-600">
                   {line.expiry_date ? formatDate(line.expiry_date) : "—"}
+                </td>
+                <td className="py-3 pr-3">{line.quantity}</td>
+                <td className="py-3 pr-3 text-slate-600">
+                  {formatUnitPieces(line.unit)}
                 </td>
                 <td className="py-3 pr-3 whitespace-nowrap">
                   {formatCurrency(line.cost ?? 0)}
