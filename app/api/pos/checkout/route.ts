@@ -68,9 +68,16 @@ export async function POST(req: Request) {
     );
 
     if (saleItems.length > 0) {
-      const { error: itemError } = await supabase
+      let { error: itemError } = await supabase
         .from("sale_items")
         .insert(saleItems);
+      // Flat-register schemas have no real batches: batch_id points at the
+      // product, which violates the sale_items FK — retry without it.
+      if (itemError && itemError.message.includes("batch_id")) {
+        ({ error: itemError } = await supabase
+          .from("sale_items")
+          .insert(saleItems.map((row) => ({ ...row, batch_id: null }))));
+      }
       if (itemError) throw new Error(itemError.message);
     }
 

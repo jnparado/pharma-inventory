@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import type { Product, Supplier, TransactionWithProduct } from "@/lib/types";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, formatUnitPieces } from "@/lib/utils";
 import {
   Badge,
   Card,
@@ -33,6 +33,10 @@ export function StockWorkspace({
   const [error, setError] = useState(initialError ?? "");
   const [stockInLoading, setStockInLoading] = useState(false);
   const [stockOutLoading, setStockOutLoading] = useState(false);
+  const [outProductId, setOutProductId] = useState("");
+
+  const selectedOutProduct =
+    initialProducts.find((p) => p.id === outProductId) ?? null;
 
   useEffect(() => {
     setTransactions(initialTransactions);
@@ -42,7 +46,7 @@ export function StockWorkspace({
     action: "in" | "out",
     form: HTMLFormElement,
     setLoading: (v: boolean) => void
-  ) {
+  ): Promise<boolean> {
     setError("");
     setLoading(true);
     const payload = Object.fromEntries(new FormData(form).entries());
@@ -58,14 +62,16 @@ export function StockWorkspace({
 
       if (!res.ok) {
         setError(data.error ?? "Stock operation failed");
-        return;
+        return false;
       }
 
       setSuccess(data.message ?? "Done");
       form.reset();
       startTransition(() => router.refresh());
+      return true;
     } catch (err) {
       setError((err as Error).message || "Stock operation failed");
+      return false;
     } finally {
       setLoading(false);
     }
@@ -206,12 +212,17 @@ export function StockWorkspace({
           </form>
         </Card>
 
-        <Card title="Stock out — dispense / sell">
+        <Card title="Sales">
           <form
             className="grid gap-4"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              submitStock("out", e.currentTarget, setStockOutLoading);
+              const ok = await submitStock(
+                "out",
+                e.currentTarget,
+                setStockOutLoading
+              );
+              if (ok) setOutProductId("");
             }}
           >
             <div>
@@ -223,7 +234,8 @@ export function StockWorkspace({
                 name="product_id"
                 required
                 className={inputClass}
-                defaultValue=""
+                value={outProductId}
+                onChange={(e) => setOutProductId(e.target.value)}
               >
                 <option value="" disabled>
                   Select a product…
@@ -235,29 +247,68 @@ export function StockWorkspace({
                 ))}
               </select>
             </div>
-            <div>
-              <label className={labelClass} htmlFor="out-qty">
-                Quantity
-              </label>
-              <input
-                id="out-qty"
-                name="quantity"
-                type="number"
-                min={1}
-                required
-                className={inputClass}
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelClass} htmlFor="out-qty">
+                  Quantity
+                </label>
+                <input
+                  id="out-qty"
+                  name="quantity"
+                  type="number"
+                  min={1}
+                  required
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass} htmlFor="out-uom">
+                  UOM (pieces per unit)
+                </label>
+                <input
+                  id="out-uom"
+                  value={
+                    selectedOutProduct
+                      ? `${formatUnitPieces(selectedOutProduct.unit)} pcs`
+                      : ""
+                  }
+                  readOnly
+                  placeholder="Select a product"
+                  className={`${inputClass} bg-slate-50 text-slate-500`}
+                />
+              </div>
             </div>
-            <div>
-              <label className={labelClass} htmlFor="out-ref">
-                Reference no.
-              </label>
-              <input
-                id="out-ref"
-                name="reference_no"
-                placeholder="Invoice / Rx #567"
-                className={inputClass}
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelClass} htmlFor="out-price">
+                  Price (&#8369; per unit)
+                </label>
+                <input
+                  id="out-price"
+                  key={outProductId}
+                  name="unit_price"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  defaultValue={selectedOutProduct?.selling_price ?? ""}
+                  placeholder="0.00"
+                  className={inputClass}
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  With a price, the dispense is recorded as a sale.
+                </p>
+              </div>
+              <div>
+                <label className={labelClass} htmlFor="out-ref">
+                  Reference no.
+                </label>
+                <input
+                  id="out-ref"
+                  name="reference_no"
+                  placeholder="Invoice / Rx #567"
+                  className={inputClass}
+                />
+              </div>
             </div>
             <div>
               <button
