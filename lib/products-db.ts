@@ -155,6 +155,7 @@ function buildRegisterPayload(
   const supplier = input.supplier_id?.trim() || null;
   return {
     product_name: input.product_name.trim(),
+    // Optional, but the column is NOT NULL in some schemas — store "".
     lot_number: input.lot_number.trim(),
     brand,
     brand_name: brand,
@@ -224,7 +225,9 @@ function mapProductRow(r: Record<string, unknown>): ProductInventoryLine {
     supplier_name: readSupplierName(r),
     rack_location: readRackLocation(r),
     quantity: Number(r.quantity ?? r.qty ?? 0),
-    lot_number: String(r.lot_number ?? r.batch_number ?? "—"),
+    lot_number: String(
+      (r.lot_number as string | null) || (r.batch_number as string | null) || "—"
+    ),
     expiry_date:
       toDateInputValue(
         (r.expiry_date as string | null) ?? (r.exp_date as string | null)
@@ -487,7 +490,7 @@ export function productLineFromInput(
     supplier_name: extras?.supplier_name ?? null,
     rack_location: input.rack_location,
     quantity: input.quantity,
-    lot_number: input.lot_number,
+    lot_number: input.lot_number.trim() || "—",
     expiry_date: input.expiry_date,
     cost: input.cost,
     selling_price_ws: input.selling_price_ws,
@@ -507,7 +510,11 @@ function buildBatchInsertRows(
   productId: string,
   input: ProductEntryInput
 ): Record<string, string | number | null>[] {
-  const lot = input.lot_number.trim();
+  // batch_number is often NOT NULL in the batches schema, so generate one
+  // when the (optional) lot number is left blank.
+  const lot =
+    input.lot_number.trim() ||
+    `ENTRY-${Date.now().toString(36).toUpperCase()}`;
   const qty = input.quantity;
 
   return [
@@ -530,15 +537,16 @@ function buildBatchInsertRows(
 function buildBatchUpdateRows(
   input: ProductEntryInput
 ): Record<string, string | number | null>[] {
-  return [
-    {
-      batch_number: input.lot_number.trim(),
-      expiry_date: input.expiry_date,
-      quantity_received: input.quantity,
-      quantity_remaining: input.quantity,
-      purchase_price: input.cost,
-    },
-  ];
+  const row: Record<string, string | number | null> = {
+    expiry_date: input.expiry_date,
+    quantity_received: input.quantity,
+    quantity_remaining: input.quantity,
+    purchase_price: input.cost,
+  };
+  // Keep the existing batch number when the optional lot field is blank.
+  const lot = input.lot_number.trim();
+  if (lot) row.batch_number = lot;
+  return [row];
 }
 
 export async function insertProductEntry(
@@ -586,7 +594,9 @@ export async function insertProductEntry(
     batch_id: batchId,
     transaction_type: "stock_in",
     quantity: input.quantity,
-    reference_no: `Entry ${input.lot_number.trim()}`,
+    reference_no: input.lot_number.trim()
+      ? `Entry ${input.lot_number.trim()}`
+      : "Product entry",
   });
 
   return { error: null, productId, batchId };
@@ -684,8 +694,8 @@ export function parseProductEntryBody(body: Record<string, unknown>) {
 }
 
 export function validateProductEntry(input: ProductEntryInput): string | null {
-  if (!input.product_name || !input.lot_number) {
-    return "Product name and lot number are required";
+  if (!input.product_name) {
+    return "Product name is required";
   }
   if (!input.brand) {
     return "Brand is required";

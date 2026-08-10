@@ -141,14 +141,13 @@ function ProductFields({
       </div>
       <div>
         <label className={labelClass} htmlFor="lot_number">
-          Lot number <span className="text-red-500">*</span>
+          Lot number
         </label>
         <input
           id="lot_number"
           name="lot_number"
-          required
           defaultValue={editing?.lot_number ?? ""}
-          placeholder="LOT-2026-001"
+          placeholder="LOT-2026-001 (optional)"
           className={inputClass}
         />
       </div>
