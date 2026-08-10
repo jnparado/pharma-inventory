@@ -30,18 +30,12 @@ export default async function StockPage({
   ]);
 
   return (
-    <>
-      <PageHeader
-        title="Purchase / Sales"
-        description="Switch between Purchase and Sales, then save. Your recent entries appear below."
-      />
-      <StockWorkspace
-        initialProducts={products}
-        initialSuppliers={suppliers}
-        initialTransactions={transactions}
-        initialSuccess={success}
-        initialError={error}
-      />
-    </>
+    <StockWorkspace
+      initialProducts={products}
+      initialSuppliers={suppliers}
+      initialTransactions={transactions}
+      initialSuccess={success}
+      initialError={error}
+    />
   );
 }

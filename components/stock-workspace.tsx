@@ -11,11 +11,9 @@ import { formatCurrency, formatDateTime, formatUnitPieces } from "@/lib/utils";
 import {
   Badge,
   Card,
-  EmptyState,
   buttonClass,
   inputClass,
   labelClass,
-  optionalClass,
 } from "@/components/ui";
 
 type StockMode = "purchase" | "sales";
@@ -93,62 +91,60 @@ export function StockWorkspace({
   }
 
   return (
-    <>
+    <div className="mx-auto max-w-xl">
+      <h1 className="text-2xl font-semibold text-slate-900">Purchase / Sales</h1>
+      <p className="mt-1 text-sm text-slate-500">
+        Pick Purchase or Sales, fill in the form, then save.
+      </p>
+
+      <div
+        className="mt-6 grid grid-cols-2 gap-2"
+        role="tablist"
+        aria-label="Purchase or sales"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "purchase"}
+          onClick={() => setMode("purchase")}
+          className={`rounded-lg py-3 text-sm font-semibold transition-colors ${
+            mode === "purchase"
+              ? "bg-teal-600 text-white shadow-sm"
+              : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          Purchase
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "sales"}
+          onClick={() => setMode("sales")}
+          className={`rounded-lg py-3 text-sm font-semibold transition-colors ${
+            mode === "sales"
+              ? "bg-teal-600 text-white shadow-sm"
+              : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          Sales
+        </button>
+      </div>
+
       {success && (
-        <div className="mb-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">
+        <div className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">
           {success}
         </div>
       )}
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      <Card>
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-slate-600">
-            {mode === "purchase"
-              ? "Add stock you bought from a supplier."
-              : "Sell or remove stock. Oldest batches go first."}
-          </p>
-          <div
-            className="flex rounded-lg border border-slate-200 bg-slate-50 p-1"
-            role="tablist"
-            aria-label="Purchase or sales"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === "purchase"}
-              onClick={() => setMode("purchase")}
-              className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                mode === "purchase"
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              Purchase
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === "sales"}
-              onClick={() => setMode("sales")}
-              className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                mode === "sales"
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              Sales
-            </button>
-          </div>
-        </div>
-
+      <Card className="mt-4">
         {mode === "purchase" ? (
           <form
-            className="grid gap-5 sm:grid-cols-2"
+            className="space-y-4"
             onSubmit={async (e) => {
               e.preventDefault();
               const ok = await submitStock(
@@ -159,7 +155,7 @@ export function StockWorkspace({
               if (ok) setInProductId("");
             }}
           >
-            <div className="sm:col-span-2">
+            <div>
               <label className={labelClass} htmlFor="in-product">
                 Product
               </label>
@@ -182,8 +178,7 @@ export function StockWorkspace({
               </select>
               {selectedInProduct && (
                 <p className="mt-1.5 text-sm text-slate-500">
-                  Pack size: {formatUnitPieces(selectedInProduct.unit)} pieces
-                  per unit
+                  Pack size: {formatUnitPieces(selectedInProduct.unit)} pcs
                 </p>
               )}
             </div>
@@ -221,7 +216,7 @@ export function StockWorkspace({
                 type="number"
                 min={1}
                 required
-                placeholder="How many units?"
+                placeholder="How many?"
                 className={inputClass}
               />
             </div>
@@ -239,48 +234,53 @@ export function StockWorkspace({
                 className={inputClass}
               />
             </div>
-            <div>
-              <label className={labelClass} htmlFor="in-supplier">
-                Supplier <span className={optionalClass}>optional</span>
-              </label>
-              <select
-                id="in-supplier"
-                name="supplier_id"
-                className={inputClass}
-                defaultValue=""
-              >
-                <option value="">None</option>
-                {initialSuppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.company_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="in-ref">
-                Reference <span className={optionalClass}>optional</span>
-              </label>
-              <input
-                id="in-ref"
-                name="reference_no"
-                placeholder="PO or invoice number"
-                className={inputClass}
-              />
-            </div>
-            <div className="sm:col-span-2 pt-1">
-              <button
-                type="submit"
-                disabled={stockInLoading}
-                className={`${buttonClass} w-full sm:w-auto`}
-              >
-                {stockInLoading ? "Saving…" : "Save purchase"}
-              </button>
-            </div>
+            <details className="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium text-slate-600">
+                More options
+              </summary>
+              <div className="mt-3 space-y-4 pb-1">
+                <div>
+                  <label className={labelClass} htmlFor="in-supplier">
+                    Supplier
+                  </label>
+                  <select
+                    id="in-supplier"
+                    name="supplier_id"
+                    className={inputClass}
+                    defaultValue=""
+                  >
+                    <option value="">None</option>
+                    {initialSuppliers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.company_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="in-ref">
+                    Reference
+                  </label>
+                  <input
+                    id="in-ref"
+                    name="reference_no"
+                    placeholder="PO or invoice number"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+            </details>
+            <button
+              type="submit"
+              disabled={stockInLoading}
+              className={`${buttonClass} w-full`}
+            >
+              {stockInLoading ? "Saving…" : "Save purchase"}
+            </button>
           </form>
         ) : (
           <form
-            className="grid gap-5 sm:grid-cols-2"
+            className="space-y-4"
             onSubmit={async (e) => {
               e.preventDefault();
               const ok = await submitStock(
@@ -295,7 +295,7 @@ export function StockWorkspace({
               }
             }}
           >
-            <div className="sm:col-span-2">
+            <div>
               <label className={labelClass} htmlFor="out-product">
                 Product
               </label>
@@ -333,8 +333,8 @@ export function StockWorkspace({
                   }`}
                 >
                   {selectedOutProduct.total_stock > 0
-                    ? `${selectedOutProduct.total_stock} available · Pack size ${formatUnitPieces(selectedOutProduct.unit)} pcs`
-                    : "This product is out of stock."}
+                    ? `${selectedOutProduct.total_stock} available`
+                    : "Out of stock"}
                 </p>
               )}
             </div>
@@ -351,7 +351,7 @@ export function StockWorkspace({
                 required
                 value={outQty}
                 onChange={(e) => setOutQty(e.target.value)}
-                placeholder="Units to sell"
+                placeholder="How many?"
                 className={inputClass}
               />
             </div>
@@ -370,101 +370,84 @@ export function StockWorkspace({
                 placeholder="0.00"
                 className={inputClass}
               />
-              <p className="mt-1.5 text-xs text-slate-400">
-                Use 0 to remove stock without a sale (damaged or expired).
-              </p>
-            </div>
-            <div className="sm:col-span-2">
-              <label className={labelClass} htmlFor="out-ref">
-                Reference <span className={optionalClass}>optional</span>
-              </label>
-              <input
-                id="out-ref"
-                name="reference_no"
-                placeholder="Invoice or prescription number"
-                className={inputClass}
-              />
             </div>
             {saleTotal > 0 && (
-              <div
-                className="sm:col-span-2 flex items-center justify-between rounded-lg border border-teal-100 bg-teal-50/80 px-4 py-3"
-              >
-                <span className="text-sm font-medium text-slate-700">
-                  Sale total
-                </span>
+              <div className="flex items-center justify-between rounded-lg border border-teal-100 bg-teal-50 px-4 py-3">
+                <span className="text-sm font-medium text-slate-700">Total</span>
                 <span className="text-xl font-semibold text-teal-700">
                   {formatCurrency(saleTotal)}
                 </span>
               </div>
             )}
-            <div className="sm:col-span-2 pt-1">
-              <button
-                type="submit"
-                disabled={
-                  stockOutLoading ||
-                  (selectedOutProduct?.total_stock ?? 0) === 0
-                }
-                className={`${buttonClass} w-full sm:w-auto`}
-              >
-                {stockOutLoading ? "Saving…" : "Save sale"}
-              </button>
-            </div>
+            <details className="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium text-slate-600">
+                More options
+              </summary>
+              <div className="mt-3 pb-1">
+                <label className={labelClass} htmlFor="out-ref">
+                  Reference
+                </label>
+                <input
+                  id="out-ref"
+                  name="reference_no"
+                  placeholder="Invoice or Rx number"
+                  className={inputClass}
+                />
+                <p className="mt-2 text-xs text-slate-400">
+                  Price 0 = remove stock only (damaged/expired).
+                </p>
+              </div>
+            </details>
+            <button
+              type="submit"
+              disabled={
+                stockOutLoading ||
+                (selectedOutProduct?.total_stock ?? 0) === 0
+              }
+              className={`${buttonClass} w-full`}
+            >
+              {stockOutLoading ? "Saving…" : "Save sale"}
+            </button>
           </form>
         )}
       </Card>
 
-      <Card title="Recent activity" className="mt-6">
+      <div className="mt-8">
+        <h2 className="text-sm font-semibold text-slate-800">Recent activity</h2>
         {transactions.length === 0 ? (
-          <EmptyState message="No transactions yet." />
+          <p className="mt-3 text-sm text-slate-400">Nothing recorded yet.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-                  <th className="pb-3 pr-4">When</th>
-                  <th className="pb-3 pr-4">Type</th>
-                  <th className="pb-3 pr-4">Product</th>
-                  <th className="pb-3 pr-4">Brand / batch</th>
-                  <th className="pb-3 pr-4">Qty</th>
-                  <th className="pb-3">Reference</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {transactions.map((t) => {
-                  const isIn = t.transaction_type.toLowerCase().includes("in");
-                  return (
-                    <tr key={t.id}>
-                      <td className="py-3 pr-4 whitespace-nowrap text-slate-500">
-                        {t.created_at ? formatDateTime(t.created_at) : "—"}
-                      </td>
-                      <td className="py-3 pr-4">
-                        {isIn ? (
-                          <Badge tone="success">Purchase</Badge>
-                        ) : (
-                          <Badge tone="info">Sale</Badge>
-                        )}
-                      </td>
-                      <td className="py-3 pr-4 font-medium text-slate-800">
-                        {t.products?.product_name ?? "—"}
-                      </td>
-                      <td className="py-3 pr-4 text-slate-600">
-                        {t.product_batches?.batch_number ?? "—"}
-                      </td>
-                      <td className="py-3 pr-4 tabular-nums text-slate-700">
-                        {isIn ? "+" : "−"}
-                        {t.quantity}
-                      </td>
-                      <td className="py-3 text-slate-500">
-                        {t.reference_no ?? "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <ul className="mt-3 divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
+            {transactions.slice(0, 12).map((t) => {
+              const isIn = t.transaction_type.toLowerCase().includes("in");
+              return (
+                <li
+                  key={t.id}
+                  className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-slate-800">
+                      {t.products?.product_name ?? "—"}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {t.created_at ? formatDateTime(t.created_at) : "—"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge tone={isIn ? "success" : "info"}>
+                      {isIn ? "Purchase" : "Sale"}
+                    </Badge>
+                    <span className="tabular-nums font-medium text-slate-700">
+                      {isIn ? "+" : "−"}
+                      {t.quantity}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
-      </Card>
-    </>
+      </div>
+    </div>
   );
 }

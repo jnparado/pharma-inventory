@@ -45,13 +45,13 @@ export function TopBar({
   }, []);
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-700/60 bg-[#151f33]">
-      <div className="flex w-full items-center justify-between gap-2 px-3 py-3 sm:gap-3 sm:px-4 md:px-8">
+    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
+      <div className="flex w-full items-center justify-between gap-2 px-3 py-3 sm:gap-3 sm:px-4 md:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={toggleMenu}
-            className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-700/50 hover:text-slate-200 md:hidden"
+            className="shrink-0 rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 md:hidden"
             aria-label="Open menu"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -65,7 +65,7 @@ export function TopBar({
             role="search"
           >
             <svg
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -81,7 +81,7 @@ export function TopBar({
               type="search"
               name="q"
               placeholder="Search products, SKU, invoices…"
-              className="w-full rounded-xl border border-slate-600 bg-[#10172A] py-2 pl-10 pr-3 text-sm text-slate-200 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             />
           </form>
         </div>
@@ -94,7 +94,7 @@ export function TopBar({
                 setShowNotifications((v) => !v);
                 setShowUserMenu(false);
               }}
-              className="relative rounded-xl p-2 text-slate-400 hover:bg-slate-700/50 hover:text-slate-200"
+              className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
               aria-label="Notifications"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -181,16 +181,16 @@ export function TopBar({
                 setShowUserMenu((v) => !v);
                 setShowNotifications(false);
               }}
-              className="flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-700/30 py-1 pl-1 pr-2 sm:gap-2.5 sm:pr-3"
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 py-1 pl-1 pr-2 sm:gap-2.5 sm:pr-3 hover:bg-slate-100"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-500/20 text-sm font-semibold text-teal-300 sm:h-9 sm:w-9">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-600 text-sm font-semibold text-white sm:h-9 sm:w-9">
                 {initials}
               </div>
               <div className="hidden min-w-0 sm:block">
-                <p className="truncate text-sm font-semibold leading-tight text-slate-100">
+                <p className="truncate text-sm font-semibold leading-tight text-slate-900">
                   {displayName}
                 </p>
-                <p className="truncate text-xs text-slate-400">{role}</p>
+                <p className="truncate text-xs text-slate-500">{role}</p>
               </div>
             </button>
 

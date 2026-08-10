@@ -70,7 +70,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <RouteChangeCloser onClose={closeMenu} />
       <div className="flex min-h-screen">
         {/* Desktop sidebar */}
-        <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r border-slate-800 bg-[#10172A] md:flex">
+        <aside className="fixed inset-y-0 left-0 z-30 hidden w-52 flex-col border-r border-slate-200 bg-white md:flex">
           <SidebarContent />
         </aside>
 
@@ -89,21 +89,23 @@ export function AppShell({ children }: { children: ReactNode }) {
             tabIndex={open ? 0 : -1}
           />
           <aside
-            className={`absolute inset-y-0 left-0 flex w-[min(100vw,18rem)] flex-col border-r border-slate-800 bg-[#10172A] shadow-2xl transition-transform duration-300 ease-out ${
+            className={`absolute inset-y-0 left-0 flex w-[min(100vw,18rem)] flex-col border-r border-slate-200 bg-white shadow-xl transition-transform duration-300 ease-out ${
               open ? "translate-x-0" : "-translate-x-full"
             }`}
           >
-            <div className="flex items-center justify-between border-b border-slate-800 px-4 py-4">
-              <div className="flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-400 text-sm font-black text-white">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-600 text-sm font-bold text-white">
                   Rx
                 </div>
-                <span className="text-lg font-bold text-white">PharmaStock</span>
+                <span className="text-base font-semibold text-slate-900">
+                  PharmaStock
+                </span>
               </div>
               <button
                 type="button"
                 onClick={closeMenu}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                 aria-label="Close menu"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -115,7 +117,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </aside>
         </div>
 
-        <div className="flex min-h-screen min-w-0 flex-1 flex-col md:pl-56">
+        <div className="flex min-h-screen min-w-0 flex-1 flex-col md:pl-52">
           {children}
         </div>
       </div>

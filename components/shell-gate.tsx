@@ -21,7 +21,7 @@ export function ShellGate({
   return (
     <AppShell>
       {topBar}
-      <main className="min-w-0 flex-1 p-4 sm:p-6 md:p-8">{children}</main>
+      <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 md:px-8">{children}</main>
     </AppShell>
   );
 }
