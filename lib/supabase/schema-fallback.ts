@@ -97,7 +97,7 @@ export function normalizeJoinedProduct(
   return {
     product_name: String(product.product_name ?? "Unknown"),
     sku: String(product.sku ?? product.lot_number ?? "—"),
-    unit: String(product.unit ?? "PCS"),
+    unit: String(product.unit ?? "pcs"),
     selling_price: Number(
       product.selling_price ?? product.selling_price_retail ?? product.price ?? 0
     ),

@@ -91,49 +91,6 @@ export function formatDisplayName(name: string): string {
   return `${first} ${lastInitial}.`;
 }
 
-export const PRODUCT_UOM_OPTIONS = [
-  { value: "Gals", label: "Gallons (Gals)" },
-  { value: "PCS", label: "Pieces (PCS)" },
-  { value: "VLS", label: "Vials (VLS)" },
-  { value: "BXS", label: "Boxes (BXS)" },
-] as const;
-
-export type ProductUom = (typeof PRODUCT_UOM_OPTIONS)[number]["value"];
-
-const PRODUCT_UOM_ALIASES: Record<string, ProductUom> = {
-  gals: "Gals",
-  gal: "Gals",
-  gallon: "Gals",
-  gallons: "Gals",
-  pcs: "PCS",
-  pc: "PCS",
-  piece: "PCS",
-  pieces: "PCS",
-  vls: "VLS",
-  vial: "VLS",
-  vials: "VLS",
-  bxs: "BXS",
-  bx: "BXS",
-  box: "BXS",
-  boxes: "BXS",
-};
-
-/** Normalize stored/input UOM to a known code, or null if invalid. */
-export function normalizeProductUom(unit: unknown): ProductUom | null {
-  const raw = String(unit ?? "").trim();
-  if (!raw) return null;
-  const alias = PRODUCT_UOM_ALIASES[raw.toLowerCase()];
-  if (alias) return alias;
-  const exact = PRODUCT_UOM_OPTIONS.find((o) => o.value === raw);
-  return exact?.value ?? null;
-}
-
-export function formatProductUom(unit: string | null | undefined): string {
-  const code = normalizeProductUom(unit);
-  if (!code) return unit?.trim() || "—";
-  return PRODUCT_UOM_OPTIONS.find((o) => o.value === code)?.label ?? code;
-}
-
 /** Parse UOM as piece count (legacy text like "pcs" → 1). */
 export function parseUnitPieces(unit: unknown): number | null {
   const raw = String(unit ?? "").trim();
@@ -160,5 +117,5 @@ export function formatUnitPieces(unit: string | null | undefined): number {
 
 /** Label shown after stock quantity (inventory is counted in pieces). */
 export function stockQuantityLabel(): string {
-  return "PCS";
+  return "pcs";
 }

@@ -54,7 +54,7 @@ export default async function OrdersPage({
   const poProducts: PoProductOption[] = inventory.map((line) => ({
     id: line.product_id,
     product_name: line.product_name,
-    unit: line.unit ?? "PCS",
+    unit: line.unit ?? "pcs",
     unit_cost:
       line.cost && line.cost > 0
         ? line.cost
