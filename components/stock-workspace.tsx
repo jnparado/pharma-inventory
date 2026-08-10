@@ -15,7 +15,10 @@ import {
   buttonClass,
   inputClass,
   labelClass,
+  optionalClass,
 } from "@/components/ui";
+
+type StockMode = "purchase" | "sales";
 
 export function StockWorkspace({
   initialProducts,
@@ -41,6 +44,7 @@ export function StockWorkspace({
   const [outProductId, setOutProductId] = useState("");
   const [outQty, setOutQty] = useState("");
   const [outPrice, setOutPrice] = useState("");
+  const [mode, setMode] = useState<StockMode>("purchase");
 
   const selectedInProduct =
     initialProducts.find((p) => p.id === inProductId) ?? null;
@@ -91,23 +95,60 @@ export function StockWorkspace({
   return (
     <>
       {success && (
-        <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        <div className="mb-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">
           {success}
         </div>
       )}
       {error && (
-        <div className="mb-4 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Purchase">
-          <p className="mb-4 text-sm text-slate-500">
-            Add stock you received from a supplier.
+      <Card>
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-600">
+            {mode === "purchase"
+              ? "Add stock you bought from a supplier."
+              : "Sell or remove stock. Oldest batches go first."}
           </p>
+          <div
+            className="flex rounded-lg border border-slate-200 bg-slate-50 p-1"
+            role="tablist"
+            aria-label="Purchase or sales"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "purchase"}
+              onClick={() => setMode("purchase")}
+              className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                mode === "purchase"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Purchase
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "sales"}
+              onClick={() => setMode("sales")}
+              className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                mode === "sales"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Sales
+            </button>
+          </div>
+        </div>
+
+        {mode === "purchase" ? (
           <form
-            className="grid gap-4 sm:grid-cols-2"
+            className="grid gap-5 sm:grid-cols-2"
             onSubmit={async (e) => {
               e.preventDefault();
               const ok = await submitStock(
@@ -131,7 +172,7 @@ export function StockWorkspace({
                 onChange={(e) => setInProductId(e.target.value)}
               >
                 <option value="" disabled>
-                  Select a product…
+                  Choose a product…
                 </option>
                 {initialProducts.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -139,24 +180,12 @@ export function StockWorkspace({
                   </option>
                 ))}
               </select>
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="in-supplier">
-                Supplier <span className="text-slate-400">(optional)</span>
-              </label>
-              <select
-                id="in-supplier"
-                name="supplier_id"
-                className={inputClass}
-                defaultValue=""
-              >
-                <option value="">No supplier</option>
-                {initialSuppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.company_name}
-                  </option>
-                ))}
-              </select>
+              {selectedInProduct && (
+                <p className="mt-1.5 text-sm text-slate-500">
+                  Pack size: {formatUnitPieces(selectedInProduct.unit)} pieces
+                  per unit
+                </p>
+              )}
             </div>
             <div>
               <label className={labelClass} htmlFor="in-batch">
@@ -166,7 +195,7 @@ export function StockWorkspace({
                 id="in-batch"
                 name="batch_number"
                 required
-                placeholder="Unilab"
+                placeholder="e.g. Unilab"
                 className={inputClass}
               />
             </div>
@@ -192,28 +221,13 @@ export function StockWorkspace({
                 type="number"
                 min={1}
                 required
+                placeholder="How many units?"
                 className={inputClass}
               />
             </div>
             <div>
-              <label className={labelClass} htmlFor="in-uom">
-                UOM (pieces per unit)
-              </label>
-              <input
-                id="in-uom"
-                value={
-                  selectedInProduct
-                    ? `${formatUnitPieces(selectedInProduct.unit)} pcs`
-                    : ""
-                }
-                readOnly
-                placeholder="Select a product"
-                className={`${inputClass} bg-slate-50 text-slate-500`}
-              />
-            </div>
-            <div>
               <label className={labelClass} htmlFor="in-cost">
-                Purchase price (per unit)
+                Cost per unit (&#8369;)
               </label>
               <input
                 id="in-cost"
@@ -226,34 +240,47 @@ export function StockWorkspace({
               />
             </div>
             <div>
+              <label className={labelClass} htmlFor="in-supplier">
+                Supplier <span className={optionalClass}>optional</span>
+              </label>
+              <select
+                id="in-supplier"
+                name="supplier_id"
+                className={inputClass}
+                defaultValue=""
+              >
+                <option value="">None</option>
+                {initialSuppliers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.company_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className={labelClass} htmlFor="in-ref">
-                Reference no. <span className="text-slate-400">(optional)</span>
+                Reference <span className={optionalClass}>optional</span>
               </label>
               <input
                 id="in-ref"
                 name="reference_no"
-                placeholder="PO #1234"
+                placeholder="PO or invoice number"
                 className={inputClass}
               />
             </div>
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-2 pt-1">
               <button
                 type="submit"
                 disabled={stockInLoading}
                 className={`${buttonClass} w-full sm:w-auto`}
               >
-                {stockInLoading ? "Saving…" : "Record purchase"}
+                {stockInLoading ? "Saving…" : "Save purchase"}
               </button>
             </div>
           </form>
-        </Card>
-
-        <Card title="Sales">
-          <p className="mb-4 text-sm text-slate-500">
-            Record a sale — stock is deducted automatically, oldest first.
-          </p>
+        ) : (
           <form
-            className="grid gap-4"
+            className="grid gap-5 sm:grid-cols-2"
             onSubmit={async (e) => {
               e.preventDefault();
               const ok = await submitStock(
@@ -268,7 +295,7 @@ export function StockWorkspace({
               }
             }}
           >
-            <div>
+            <div className="sm:col-span-2">
               <label className={labelClass} htmlFor="out-product">
                 Product
               </label>
@@ -289,130 +316,117 @@ export function StockWorkspace({
                 }}
               >
                 <option value="" disabled>
-                  Select a product…
+                  Choose a product…
                 </option>
                 {initialProducts.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.product_name} ({p.sku}) — {p.total_stock} in stock
+                    {p.product_name} — {p.total_stock} in stock
                   </option>
                 ))}
               </select>
               {selectedOutProduct && (
                 <p
-                  className={`mt-1 text-xs ${
+                  className={`mt-1.5 text-sm ${
                     selectedOutProduct.total_stock > 0
-                      ? "text-slate-400"
-                      : "text-red-500"
+                      ? "text-slate-500"
+                      : "text-red-600"
                   }`}
                 >
                   {selectedOutProduct.total_stock > 0
-                    ? `${selectedOutProduct.total_stock} available`
-                    : "Out of stock"}
+                    ? `${selectedOutProduct.total_stock} available · Pack size ${formatUnitPieces(selectedOutProduct.unit)} pcs`
+                    : "This product is out of stock."}
                 </p>
               )}
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className={labelClass} htmlFor="out-qty">
-                  Quantity
-                </label>
-                <input
-                  id="out-qty"
-                  name="quantity"
-                  type="number"
-                  min={1}
-                  max={selectedOutProduct?.total_stock || undefined}
-                  required
-                  value={outQty}
-                  onChange={(e) => setOutQty(e.target.value)}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className={labelClass} htmlFor="out-uom">
-                  UOM (pieces per unit)
-                </label>
-                <input
-                  id="out-uom"
-                  value={
-                    selectedOutProduct
-                      ? `${formatUnitPieces(selectedOutProduct.unit)} pcs`
-                      : ""
-                  }
-                  readOnly
-                  placeholder="Select a product"
-                  className={`${inputClass} bg-slate-50 text-slate-500`}
-                />
-              </div>
+            <div>
+              <label className={labelClass} htmlFor="out-qty">
+                Quantity
+              </label>
+              <input
+                id="out-qty"
+                name="quantity"
+                type="number"
+                min={1}
+                max={selectedOutProduct?.total_stock || undefined}
+                required
+                value={outQty}
+                onChange={(e) => setOutQty(e.target.value)}
+                placeholder="Units to sell"
+                className={inputClass}
+              />
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className={labelClass} htmlFor="out-price">
-                  Price (&#8369; per unit)
-                </label>
-                <input
-                  id="out-price"
-                  name="unit_price"
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={outPrice}
-                  onChange={(e) => setOutPrice(e.target.value)}
-                  placeholder="0.00"
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className={labelClass} htmlFor="out-ref">
-                  Reference no. <span className="text-slate-400">(optional)</span>
-                </label>
-                <input
-                  id="out-ref"
-                  name="reference_no"
-                  placeholder="Invoice / Rx #567"
-                  className={inputClass}
-                />
-              </div>
+            <div>
+              <label className={labelClass} htmlFor="out-price">
+                Price per unit (&#8369;)
+              </label>
+              <input
+                id="out-price"
+                name="unit_price"
+                type="number"
+                step="0.01"
+                min={0}
+                value={outPrice}
+                onChange={(e) => setOutPrice(e.target.value)}
+                placeholder="0.00"
+                className={inputClass}
+              />
+              <p className="mt-1.5 text-xs text-slate-400">
+                Use 0 to remove stock without a sale (damaged or expired).
+              </p>
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelClass} htmlFor="out-ref">
+                Reference <span className={optionalClass}>optional</span>
+              </label>
+              <input
+                id="out-ref"
+                name="reference_no"
+                placeholder="Invoice or prescription number"
+                className={inputClass}
+              />
             </div>
             {saleTotal > 0 && (
-              <div className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3">
-                <span className="text-sm font-medium text-slate-600">Total</span>
-                <span className="text-lg font-bold text-teal-700">
+              <div
+                className="sm:col-span-2 flex items-center justify-between rounded-lg border border-teal-100 bg-teal-50/80 px-4 py-3"
+              >
+                <span className="text-sm font-medium text-slate-700">
+                  Sale total
+                </span>
+                <span className="text-xl font-semibold text-teal-700">
                   {formatCurrency(saleTotal)}
                 </span>
               </div>
             )}
-            <div>
+            <div className="sm:col-span-2 pt-1">
               <button
                 type="submit"
-                disabled={stockOutLoading}
+                disabled={
+                  stockOutLoading ||
+                  (selectedOutProduct?.total_stock ?? 0) === 0
+                }
                 className={`${buttonClass} w-full sm:w-auto`}
               >
-                {stockOutLoading ? "Saving…" : "Record sale"}
+                {stockOutLoading ? "Saving…" : "Save sale"}
               </button>
             </div>
-            <p className="text-xs text-slate-400">
-              Leave the price at 0 to remove stock without recording a sale
-              (e.g. damaged or expired items). Expired stock is never sold.
-            </p>
           </form>
-        </Card>
-      </div>
+        )}
+      </Card>
 
-      <Card title="Purchase & sales history" className="mt-6">
+      <Card title="Recent activity" className="mt-6">
         {transactions.length === 0 ? (
           <EmptyState message="No transactions yet." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
-                  <th className="pb-2 font-medium">Date</th>
-                  <th className="pb-2 font-medium">Type</th>
-                  <th className="pb-2 font-medium">Product</th>
-                  <th className="pb-2 font-medium">Batch</th>
-                  <th className="pb-2 font-medium">Qty</th>
-                  <th className="pb-2 font-medium">Reference</th>
+                <tr className="text-left text-xs font-medium uppercase tracking-wide text-slate-400">
+                  <th className="pb-3 pr-4">When</th>
+                  <th className="pb-3 pr-4">Type</th>
+                  <th className="pb-3 pr-4">Product</th>
+                  <th className="pb-3 pr-4">Brand / batch</th>
+                  <th className="pb-3 pr-4">Qty</th>
+                  <th className="pb-3">Reference</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -420,25 +434,25 @@ export function StockWorkspace({
                   const isIn = t.transaction_type.toLowerCase().includes("in");
                   return (
                     <tr key={t.id}>
-                      <td className="py-3 whitespace-nowrap text-slate-500">
+                      <td className="py-3 pr-4 whitespace-nowrap text-slate-500">
                         {t.created_at ? formatDateTime(t.created_at) : "—"}
                       </td>
-                      <td className="py-3">
+                      <td className="py-3 pr-4">
                         {isIn ? (
-                          <Badge tone="success">Stock in</Badge>
+                          <Badge tone="success">Purchase</Badge>
                         ) : (
-                          <Badge tone="info">Stock out</Badge>
+                          <Badge tone="info">Sale</Badge>
                         )}
                       </td>
-                      <td className="py-3 font-medium text-slate-700">
+                      <td className="py-3 pr-4 font-medium text-slate-800">
                         {t.products?.product_name ?? "—"}
                       </td>
-                      <td className="py-3 font-mono text-xs text-slate-500">
+                      <td className="py-3 pr-4 text-slate-600">
                         {t.product_batches?.batch_number ?? "—"}
                       </td>
-                      <td className="py-3">
+                      <td className="py-3 pr-4 tabular-nums text-slate-700">
                         {isIn ? "+" : "−"}
-                        {t.quantity} {t.products?.unit ?? ""}
+                        {t.quantity}
                       </td>
                       <td className="py-3 text-slate-500">
                         {t.reference_no ?? "—"}

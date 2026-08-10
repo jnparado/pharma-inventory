@@ -33,7 +33,7 @@ export default async function StockPage({
     <>
       <PageHeader
         title="Purchase / Sales"
-        description="Record purchases to add stock and sales to deduct it. Oldest stock is always sold first."
+        description="Switch between Purchase and Sales, then save. Your recent entries appear below."
       />
       <StockWorkspace
         initialProducts={products}
