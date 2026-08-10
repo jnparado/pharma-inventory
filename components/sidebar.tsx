@@ -21,24 +21,6 @@ const navItems: NavItem[] = [
     icon: "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z",
   },
   {
-    type: "group",
-    label: "Purchase",
-    icon: "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z",
-    children: [
-      { href: "/orders", label: "Purchase Orders" },
-    ],
-  },
-  {
-    type: "group",
-    label: "Dispenser",
-    icon: "M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z",
-    children: [
-      { href: "/pos", label: "POS" },
-      { href: "/scan", label: "Barcode Scan" },
-      { href: "/prescriptions", label: "Prescriptions" },
-    ],
-  },
-  {
     type: "link",
     href: "/products",
     label: "Product",
@@ -58,7 +40,7 @@ const navItems: NavItem[] = [
     label: "Stock",
     icon: "M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4",
     children: [
-      { href: "/stock", label: "Stock In / Out" },
+      { href: "/stock", label: "Purchase/Sales" },
       { href: "/expiry", label: "Expiry Monitor" },
     ],
   },
@@ -72,12 +54,6 @@ const navItems: NavItem[] = [
     type: "link",
     href: "/suppliers",
     label: "Suppliers",
-    icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
-  },
-  {
-    type: "link",
-    href: "/branches",
-    label: "Branches",
     icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
   },
   {
@@ -126,7 +102,7 @@ function SidebarContent({
   hideBrand?: boolean;
 }) {
   const pathname = usePathname();
-  const [openGroups, setOpenGroups] = useState<string[]>(["Purchase", "Stock"]);
+  const [openGroups, setOpenGroups] = useState<string[]>(["Stock"]);
 
   function toggleGroup(label: string) {
     setOpenGroups((prev) =>
