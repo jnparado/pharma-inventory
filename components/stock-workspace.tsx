@@ -33,8 +33,11 @@ export function StockWorkspace({
   const [error, setError] = useState(initialError ?? "");
   const [stockInLoading, setStockInLoading] = useState(false);
   const [stockOutLoading, setStockOutLoading] = useState(false);
+  const [inProductId, setInProductId] = useState("");
   const [outProductId, setOutProductId] = useState("");
 
+  const selectedInProduct =
+    initialProducts.find((p) => p.id === inProductId) ?? null;
   const selectedOutProduct =
     initialProducts.find((p) => p.id === outProductId) ?? null;
 
@@ -91,12 +94,17 @@ export function StockWorkspace({
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Stock in — receive a batch">
+        <Card title="Purchase">
           <form
             className="grid gap-4 sm:grid-cols-2"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              submitStock("in", e.currentTarget, setStockInLoading);
+              const ok = await submitStock(
+                "in",
+                e.currentTarget,
+                setStockInLoading
+              );
+              if (ok) setInProductId("");
             }}
           >
             <div className="sm:col-span-2">
@@ -108,7 +116,8 @@ export function StockWorkspace({
                 name="product_id"
                 required
                 className={inputClass}
-                defaultValue=""
+                value={inProductId}
+                onChange={(e) => setInProductId(e.target.value)}
               >
                 <option value="" disabled>
                   Select a product…
@@ -140,13 +149,13 @@ export function StockWorkspace({
             </div>
             <div>
               <label className={labelClass} htmlFor="in-batch">
-                Batch number
+                Brand
               </label>
               <input
                 id="in-batch"
                 name="batch_number"
                 required
-                placeholder="PCM-2506"
+                placeholder="Unilab"
                 className={inputClass}
               />
             </div>
@@ -173,6 +182,22 @@ export function StockWorkspace({
                 min={1}
                 required
                 className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="in-uom">
+                UOM (pieces per unit)
+              </label>
+              <input
+                id="in-uom"
+                value={
+                  selectedInProduct
+                    ? `${formatUnitPieces(selectedInProduct.unit)} pcs`
+                    : ""
+                }
+                readOnly
+                placeholder="Select a product"
+                className={`${inputClass} bg-slate-50 text-slate-500`}
               />
             </div>
             <div>

@@ -17,7 +17,7 @@ export default async function StockPage({
   if (!isSupabaseConfigured()) {
     return (
       <>
-        <PageHeader title="Stock In / Out" />
+        <PageHeader title="Purchase / Sales" />
         <SetupNotice />
       </>
     );
@@ -32,7 +32,7 @@ export default async function StockPage({
   return (
     <>
       <PageHeader
-        title="Stock In / Out"
+        title="Purchase / Sales"
         description="Receive new batches and dispense stock. Dispensing follows FIFO — the oldest received batch is deducted first."
       />
       <StockWorkspace
