@@ -1,7 +1,7 @@
 import { StockWorkspace } from "@/components/stock-workspace";
 import { PageHeader, SetupNotice } from "@/components/ui";
 import {
-  getProducts,
+  getProductsWithStock,
   getSuppliers,
   getTransactions,
   isSupabaseConfigured,
@@ -24,7 +24,7 @@ export default async function StockPage({
   }
 
   const [products, suppliers, transactions] = await Promise.all([
-    getProducts(),
+    getProductsWithStock(),
     getSuppliers(),
     getTransactions(),
   ]);
@@ -33,7 +33,7 @@ export default async function StockPage({
     <>
       <PageHeader
         title="Purchase / Sales"
-        description="Receive new batches and dispense stock. Dispensing follows FIFO — the oldest received batch is deducted first."
+        description="Record purchases to add stock and sales to deduct it. Oldest stock is always sold first."
       />
       <StockWorkspace
         initialProducts={products}

@@ -2,8 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import type { Product, Supplier, TransactionWithProduct } from "@/lib/types";
-import { formatDateTime, formatUnitPieces } from "@/lib/utils";
+import type {
+  ProductWithStock,
+  Supplier,
+  TransactionWithProduct,
+} from "@/lib/types";
+import { formatCurrency, formatDateTime, formatUnitPieces } from "@/lib/utils";
 import {
   Badge,
   Card,
@@ -20,7 +24,7 @@ export function StockWorkspace({
   initialSuccess,
   initialError,
 }: {
-  initialProducts: Product[];
+  initialProducts: ProductWithStock[];
   initialSuppliers: Supplier[];
   initialTransactions: TransactionWithProduct[];
   initialSuccess?: string;
@@ -35,11 +39,15 @@ export function StockWorkspace({
   const [stockOutLoading, setStockOutLoading] = useState(false);
   const [inProductId, setInProductId] = useState("");
   const [outProductId, setOutProductId] = useState("");
+  const [outQty, setOutQty] = useState("");
+  const [outPrice, setOutPrice] = useState("");
 
   const selectedInProduct =
     initialProducts.find((p) => p.id === inProductId) ?? null;
   const selectedOutProduct =
     initialProducts.find((p) => p.id === outProductId) ?? null;
+
+  const saleTotal = (Number(outQty) || 0) * (Number(outPrice) || 0);
 
   useEffect(() => {
     setTransactions(initialTransactions);
@@ -95,6 +103,9 @@ export function StockWorkspace({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Purchase">
+          <p className="mb-4 text-sm text-slate-500">
+            Add stock you received from a supplier.
+          </p>
           <form
             className="grid gap-4 sm:grid-cols-2"
             onSubmit={async (e) => {
@@ -131,7 +142,7 @@ export function StockWorkspace({
             </div>
             <div>
               <label className={labelClass} htmlFor="in-supplier">
-                Supplier
+                Supplier <span className="text-slate-400">(optional)</span>
               </label>
               <select
                 id="in-supplier"
@@ -216,7 +227,7 @@ export function StockWorkspace({
             </div>
             <div>
               <label className={labelClass} htmlFor="in-ref">
-                Reference no.
+                Reference no. <span className="text-slate-400">(optional)</span>
               </label>
               <input
                 id="in-ref"
@@ -229,15 +240,18 @@ export function StockWorkspace({
               <button
                 type="submit"
                 disabled={stockInLoading}
-                className={buttonClass}
+                className={`${buttonClass} w-full sm:w-auto`}
               >
-                {stockInLoading ? "Receiving…" : "Receive stock"}
+                {stockInLoading ? "Saving…" : "Record purchase"}
               </button>
             </div>
           </form>
         </Card>
 
         <Card title="Sales">
+          <p className="mb-4 text-sm text-slate-500">
+            Record a sale — stock is deducted automatically, oldest first.
+          </p>
           <form
             className="grid gap-4"
             onSubmit={async (e) => {
@@ -247,7 +261,11 @@ export function StockWorkspace({
                 e.currentTarget,
                 setStockOutLoading
               );
-              if (ok) setOutProductId("");
+              if (ok) {
+                setOutProductId("");
+                setOutQty("");
+                setOutPrice("");
+              }
             }}
           >
             <div>
@@ -260,17 +278,38 @@ export function StockWorkspace({
                 required
                 className={inputClass}
                 value={outProductId}
-                onChange={(e) => setOutProductId(e.target.value)}
+                onChange={(e) => {
+                  setOutProductId(e.target.value);
+                  const product = initialProducts.find(
+                    (p) => p.id === e.target.value
+                  );
+                  setOutPrice(
+                    product ? String(product.selling_price ?? "") : ""
+                  );
+                }}
               >
                 <option value="" disabled>
                   Select a product…
                 </option>
                 {initialProducts.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.product_name} ({p.sku})
+                    {p.product_name} ({p.sku}) — {p.total_stock} in stock
                   </option>
                 ))}
               </select>
+              {selectedOutProduct && (
+                <p
+                  className={`mt-1 text-xs ${
+                    selectedOutProduct.total_stock > 0
+                      ? "text-slate-400"
+                      : "text-red-500"
+                  }`}
+                >
+                  {selectedOutProduct.total_stock > 0
+                    ? `${selectedOutProduct.total_stock} available`
+                    : "Out of stock"}
+                </p>
+              )}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -282,7 +321,10 @@ export function StockWorkspace({
                   name="quantity"
                   type="number"
                   min={1}
+                  max={selectedOutProduct?.total_stock || undefined}
                   required
+                  value={outQty}
+                  onChange={(e) => setOutQty(e.target.value)}
                   className={inputClass}
                 />
               </div>
@@ -310,22 +352,19 @@ export function StockWorkspace({
                 </label>
                 <input
                   id="out-price"
-                  key={outProductId}
                   name="unit_price"
                   type="number"
                   step="0.01"
                   min={0}
-                  defaultValue={selectedOutProduct?.selling_price ?? ""}
+                  value={outPrice}
+                  onChange={(e) => setOutPrice(e.target.value)}
                   placeholder="0.00"
                   className={inputClass}
                 />
-                <p className="mt-1 text-xs text-slate-400">
-                  With a price, the dispense is recorded as a sale.
-                </p>
               </div>
               <div>
                 <label className={labelClass} htmlFor="out-ref">
-                  Reference no.
+                  Reference no. <span className="text-slate-400">(optional)</span>
                 </label>
                 <input
                   id="out-ref"
@@ -335,18 +374,26 @@ export function StockWorkspace({
                 />
               </div>
             </div>
+            {saleTotal > 0 && (
+              <div className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3">
+                <span className="text-sm font-medium text-slate-600">Total</span>
+                <span className="text-lg font-bold text-teal-700">
+                  {formatCurrency(saleTotal)}
+                </span>
+              </div>
+            )}
             <div>
               <button
                 type="submit"
                 disabled={stockOutLoading}
-                className={buttonClass}
+                className={`${buttonClass} w-full sm:w-auto`}
               >
-                {stockOutLoading ? "Dispensing…" : "Dispense stock (FIFO)"}
+                {stockOutLoading ? "Saving…" : "Record sale"}
               </button>
             </div>
             <p className="text-xs text-slate-400">
-              First In, First Out — oldest stock is dispensed first. Expired
-              batches are skipped automatically.
+              Leave the price at 0 to remove stock without recording a sale
+              (e.g. damaged or expired items). Expired stock is never sold.
             </p>
           </form>
         </Card>
