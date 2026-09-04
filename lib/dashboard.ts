@@ -2,21 +2,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getProductInventoryLines,
   getProductsWithStock,
-  getPurchaseOrders,
 } from "@/lib/data";
 import { getSalesMetrics } from "@/lib/sales-metrics";
+import { cleanupOrphanedPurchaseOrderSales } from "@/lib/purchase-order-invoice";
 import { formatCurrency, expiryStatus } from "@/lib/utils";
 import type { DashboardInventoryRow, SaleWithItems } from "@/lib/types";
 
-export type DashboardOrderRow = {
-  id: string;
-  po_number: string;
-  supplier: string | null;
-  status: string | null;
-  items_count: number;
-  total: number;
-  created_at: string | null;
-};
+function isRetailSale(sale: SaleWithItems): boolean {
+  return (sale.payment_method ?? "").toLowerCase() !== "purchase_order";
+}
 
 const MONTHS = [
   "Jan",
@@ -117,24 +111,6 @@ async function computeMonthProfit(
   return profit;
 }
 
-function toOrderRow(
-  po: Awaited<ReturnType<typeof getPurchaseOrders>>[number]
-): DashboardOrderRow {
-  const orderItems = po.purchase_order_items ?? [];
-  return {
-    id: po.id,
-    po_number: po.po_number,
-    supplier: po.suppliers?.company_name ?? null,
-    status: po.status,
-    items_count: orderItems.length,
-    total: orderItems.reduce(
-      (sum, item) => sum + item.quantity * Number(item.unit_cost ?? 0),
-      0
-    ),
-    created_at: po.created_at,
-  };
-}
-
 function emptyDashboardData() {
   return {
     customerCount: 0,
@@ -142,7 +118,6 @@ function emptyDashboardData() {
     totalProfit: 0,
     outOfStock: 0,
     expiringList: [] as DashboardInventoryRow[],
-    recentOrders: [] as DashboardOrderRow[],
     monthlySales: MONTHS.map((month) => ({ month, sales: 0 })),
     todayBreakdown: [
       { name: "Cash", value: 0, color: "#fbbf24" },
@@ -157,16 +132,17 @@ function emptyDashboardData() {
 export async function getDashboardData() {
   try {
     const supabase = createAdminClient();
-    const [products, metrics, inventory, customersRes, purchaseOrders] =
-      await Promise.all([
+    await cleanupOrphanedPurchaseOrderSales(supabase).catch(() => {});
+
+    const [products, metrics, inventory, customersRes] = await Promise.all([
         getProductsWithStock(),
         getSalesMetrics(),
         getProductInventoryLines(),
         supabase.from("customers").select("id", { count: "exact", head: true }),
-        getPurchaseOrders().catch(() => []),
       ]);
 
     const sales = metrics.sales;
+    const retailSales = sales.filter(isRetailSale);
     const summary = metrics.summary;
     const outOfStock = products.filter((p) => p.total_stock === 0).length;
     const customerCount = customersRes.error ? 0 : (customersRes.count ?? 0);
@@ -184,10 +160,8 @@ export async function getDashboardData() {
       .slice(0, 6)
       .map(toDashboardRow);
 
-    const recentOrders = purchaseOrders.slice(0, 6).map(toOrderRow);
-
     const monthlySales = MONTHS.map((month, i) => {
-      const total = sales
+      const total = retailSales
         .filter((s) => {
           if (!s.created_at) return false;
           const d = new Date(s.created_at);
@@ -199,7 +173,7 @@ export async function getDashboardData() {
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const todaySales = sales.filter(
+    const todaySales = retailSales.filter(
       (s) => s.created_at && new Date(s.created_at) >= todayStart
     );
     const todayTotal = todaySales.reduce(
@@ -234,17 +208,16 @@ export async function getDashboardData() {
             { name: "Card", value: 0, color: "#ec4899" },
           ];
 
-    const totalProfit = await computeMonthProfit(supabase, sales).catch(
+    const totalProfit = await computeMonthProfit(supabase, retailSales).catch(
       () => summary.month_total * 0.35
     );
 
     return {
       customerCount,
-      totalSales: sales.length,
+      totalSales: retailSales.length,
       totalProfit,
       outOfStock,
       expiringList,
-      recentOrders,
       monthlySales,
       todayBreakdown,
       todayTotal,

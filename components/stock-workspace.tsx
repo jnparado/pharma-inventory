@@ -7,7 +7,7 @@ import type {
   Supplier,
   TransactionWithProduct,
 } from "@/lib/types";
-import { formatCurrency, formatDateTime, formatUnitPieces } from "@/lib/utils";
+import { formatCurrency, formatDateTime, formatProductUom } from "@/lib/utils";
 import {
   Badge,
   Card,
@@ -178,7 +178,7 @@ export function StockWorkspace({
               </select>
               {selectedInProduct && (
                 <p className="mt-1.5 text-sm text-slate-500">
-                  Pack size: {formatUnitPieces(selectedInProduct.unit)} pcs
+                  UOM: {formatProductUom(selectedInProduct.unit)}
                 </p>
               )}
             </div>

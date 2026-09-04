@@ -2,7 +2,6 @@ import Link from "next/link";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { KpiCard } from "@/components/kpi-card";
 import { SetupNotice, TableScroll } from "@/components/ui";
-import { Badge } from "@/components/ui";
 import { getDashboardData } from "@/lib/dashboard";
 import { isSupabaseConfigured } from "@/lib/data";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -79,21 +78,20 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-slate-800 sm:text-base">
-              Expiring List
-            </h3>
-            <Link
-              href="/expiry"
-              className="shrink-0 text-xs font-medium text-teal-600 hover:underline"
-            >
-              See All
-            </Link>
-          </div>
-          <TableScroll>
-            <table className="w-full min-w-[640px] text-sm">
+      <div className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-800 sm:text-base">
+            Expiring List
+          </h3>
+          <Link
+            href="/expiry"
+            className="shrink-0 text-xs font-medium text-teal-600 hover:underline"
+          >
+            See All
+          </Link>
+        </div>
+        <TableScroll>
+          <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="text-left text-xs text-slate-400">
                 {tableHeaders}
@@ -132,79 +130,7 @@ export default async function DashboardPage() {
               )}
             </tbody>
           </table>
-          </TableScroll>
-        </div>
-
-        <div className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-slate-800 sm:text-base">
-              Recent Orders
-            </h3>
-            <Link
-              href="/orders"
-              className="shrink-0 text-xs font-medium text-teal-600 hover:underline"
-            >
-              See All
-            </Link>
-          </div>
-          <TableScroll>
-            <table className="w-full min-w-[640px] text-sm">
-            <thead>
-              <tr className="text-left text-xs text-slate-400">
-                <th className="pb-3 font-medium">PO number</th>
-                <th className="pb-3 font-medium">Supplier</th>
-                <th className="pb-3 font-medium">Items</th>
-                <th className="pb-3 font-medium">Total</th>
-                <th className="pb-3 font-medium">Status</th>
-                <th className="pb-3 font-medium">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.recentOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
-                    No purchase orders yet
-                  </td>
-                </tr>
-              ) : (
-                data.recentOrders.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-50">
-                    <td className="py-3 font-medium text-slate-700">
-                      <Link
-                        href={`/orders/${row.id}`}
-                        className="hover:text-teal-600 hover:underline"
-                      >
-                        {row.po_number}
-                      </Link>
-                    </td>
-                    <td className="py-3 text-slate-500">
-                      {row.supplier ?? "—"}
-                    </td>
-                    <td className="py-3">{row.items_count}</td>
-                    <td className="py-3">{formatCurrency(row.total)}</td>
-                    <td className="py-3">
-                      <Badge
-                        tone={
-                          row.status === "received"
-                            ? "success"
-                            : row.status === "cancelled"
-                              ? "danger"
-                              : "warning"
-                        }
-                      >
-                        {row.status ?? "pending"}
-                      </Badge>
-                    </td>
-                    <td className="py-3 text-slate-500">
-                      {row.created_at ? formatDate(row.created_at) : "—"}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-          </TableScroll>
-        </div>
+        </TableScroll>
       </div>
 
       <DashboardCharts

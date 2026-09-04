@@ -29,22 +29,10 @@ const otherExports = [
     json: "/api/export/sales?format=json",
   },
   {
-    label: "Inventory batches",
+    label: "Inventory",
     description: "Batch numbers, expiry dates, and quantities",
     csv: "/api/export/batches",
     json: "/api/export/batches?format=json",
-  },
-  {
-    label: "Stock transactions",
-    description: "Stock in / out history",
-    csv: "/api/export/transactions",
-    json: "/api/export/transactions?format=json",
-  },
-  {
-    label: "Purchase orders",
-    description: "Supplier orders and line items",
-    csv: "/api/export/orders",
-    json: "/api/export/orders?format=json",
   },
 ];
 

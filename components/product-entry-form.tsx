@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { buttonClass, inputClass, labelClass } from "@/components/ui";
 import type { ProductInventoryLine, Supplier } from "@/lib/types";
-import { formatUnitPieces } from "@/lib/utils";
+import { PRODUCT_UOM_OPTIONS, normalizeProductUom } from "@/lib/utils";
 
 type ProductEntry = {
   entry_date: string | null;
@@ -76,22 +76,37 @@ function ProductFields({
       </div>
       <div>
         <label className={labelClass} htmlFor="unit">
-          UOM (pieces) <span className="text-red-500">*</span>
+          Unit of measure <span className="text-red-500">*</span>
         </label>
-        <input
+        <select
           id="unit"
           name="unit"
+          required
+          defaultValue={normalizeProductUom(editing?.unit) ?? "pcs"}
+          className={inputClass}
+        >
+          {PRODUCT_UOM_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className={labelClass} htmlFor="quantity">
+          Quantity <span className="text-red-500">*</span>
+        </label>
+        <input
+          id="quantity"
+          name="quantity"
           type="number"
           min={1}
           step={1}
           required
-          defaultValue={formatUnitPieces(editing?.unit ?? "1")}
-          placeholder="30"
+          defaultValue={editing?.quantity ?? ""}
+          placeholder="100"
           className={inputClass}
         />
-        <p className="mt-1 text-xs text-slate-400">
-          Number of pieces per unit (e.g. 30 for a 30&apos;s pack)
-        </p>
       </div>
       <div>
         <label className={labelClass} htmlFor="supplier_id">
@@ -120,22 +135,6 @@ function ProductFields({
           name="rack_location"
           defaultValue={editing?.rack_location ?? ""}
           placeholder="A-12, Shelf 3"
-          className={inputClass}
-        />
-      </div>
-      <div>
-        <label className={labelClass} htmlFor="quantity">
-          Quantity <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="quantity"
-          name="quantity"
-          type="number"
-          min={1}
-          step={1}
-          required
-          defaultValue={editing?.quantity ?? ""}
-          placeholder="100"
           className={inputClass}
         />
       </div>
@@ -353,8 +352,8 @@ export function ProductEntryForm({
         if (dateInput) dateInput.value = today;
         const expiryInput = form.querySelector<HTMLInputElement>("#expiry_date");
         if (expiryInput) expiryInput.value = "";
-        const unitInput = form.querySelector<HTMLInputElement>("#unit");
-        if (unitInput) unitInput.value = "1";
+        const unitInput = form.querySelector<HTMLSelectElement>("#unit");
+        if (unitInput) unitInput.value = "pcs";
       }
 
       const message = data.message ?? "Saved";

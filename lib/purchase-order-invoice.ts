@@ -209,3 +209,31 @@ export async function getSalesInvoicesForPurchaseOrders(
   }
   return map;
 }
+
+/** Remove empty POs and their linked SI-PO sales invoices (left after product deletes). */
+export async function cleanupOrphanedPurchaseOrderSales(
+  supabase: SupabaseClient
+): Promise<void> {
+  const { data: pos } = await supabase
+    .from("purchase_orders")
+    .select("id, po_number, purchase_order_items(id)");
+
+  for (const po of pos ?? []) {
+    const items = (po.purchase_order_items ?? []) as Array<{ id: string }>;
+    if (items.length > 0) continue;
+
+    const invoiceNumber = salesInvoiceNumberForPo(po.po_number as string);
+    const { data: sale } = await supabase
+      .from("sales")
+      .select("id")
+      .eq("invoice_number", invoiceNumber)
+      .maybeSingle();
+
+    if (sale) {
+      await supabase.from("sale_items").delete().eq("sale_id", sale.id);
+      await supabase.from("sales").delete().eq("id", sale.id);
+    }
+
+    await supabase.from("purchase_orders").delete().eq("id", po.id);
+  }
+}

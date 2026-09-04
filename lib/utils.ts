@@ -91,6 +91,50 @@ export function formatDisplayName(name: string): string {
   return `${first} ${lastInitial}.`;
 }
 
+/** Standard product unit-of-measure codes (abbreviations only in UI). */
+export const PRODUCT_UOM_OPTIONS = [
+  { value: "pcs", label: "PCS" },
+  { value: "vial", label: "VIAL" },
+  { value: "box", label: "BOX" },
+  { value: "btl", label: "BTL" },
+] as const;
+
+export type ProductUom = (typeof PRODUCT_UOM_OPTIONS)[number]["value"];
+
+const PRODUCT_UOM_ALIASES: Record<string, ProductUom> = {
+  pcs: "pcs",
+  pc: "pcs",
+  piece: "pcs",
+  pieces: "pcs",
+  vial: "vial",
+  vials: "vial",
+  vls: "vial",
+  box: "box",
+  boxes: "box",
+  bxs: "box",
+  btl: "btl",
+  bottle: "btl",
+  bottles: "btl",
+};
+
+export function normalizeProductUom(unit: unknown): ProductUom | null {
+  const raw = String(unit ?? "").trim().toLowerCase();
+  if (!raw) return "pcs";
+  if (PRODUCT_UOM_ALIASES[raw]) return PRODUCT_UOM_ALIASES[raw];
+  if (/^\d+$/.test(raw)) return "pcs";
+  return null;
+}
+
+export function formatProductUom(unit: string | null | undefined): string {
+  const normalized = normalizeProductUom(unit);
+  if (!normalized) {
+    const raw = String(unit ?? "").trim();
+    return raw ? raw.toUpperCase() : "PCS";
+  }
+  const option = PRODUCT_UOM_OPTIONS.find((o) => o.value === normalized);
+  return option?.label ?? normalized.toUpperCase();
+}
+
 /** Parse UOM as piece count (legacy text like "pcs" → 1). */
 export function parseUnitPieces(unit: unknown): number | null {
   const raw = String(unit ?? "").trim();

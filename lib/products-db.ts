@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cleanupOrphanedPurchaseOrderSales } from "@/lib/purchase-order-invoice";
 import type { ProductInventoryLine } from "@/lib/types";
-import { toDateInputValue, parseUnitPieces, formatUnitPieces } from "@/lib/utils";
+import { toDateInputValue, normalizeProductUom, formatProductUom } from "@/lib/utils";
 
 export type ProductEntryInput = {
   entry_date: string;
@@ -150,7 +151,7 @@ function buildRegisterPayload(
   input: ProductEntryInput
 ): Record<string, string | number | null> {
   const brand = input.brand.trim() || null;
-  const unit = String(parseUnitPieces(input.unit) ?? 1);
+  const unit = normalizeProductUom(input.unit) ?? "pcs";
   const rack = input.rack_location?.trim() || null;
   const supplier = input.supplier_id?.trim() || null;
   return {
@@ -220,7 +221,7 @@ function mapProductRow(r: Record<string, unknown>): ProductInventoryLine {
       ) || null,
     product_name: String(r.product_name ?? r.name ?? "Unknown"),
     brand: (r.brand as string | null) ?? (r.brand_name as string | null) ?? null,
-    unit: String(formatUnitPieces(r.unit as string | null)),
+    unit: normalizeProductUom(r.unit) ?? "pcs",
     supplier_id: readSupplierId(r),
     supplier_name: readSupplierName(r),
     rack_location: readRackLocation(r),
@@ -376,7 +377,7 @@ export function mapBatchRowToInventoryLine(row: BatchRow): ProductInventoryLine 
     entry_date: toDateInputValue(row.received_date ?? row.created_at?.slice(0, 10)) || null,
     product_name: product.product_name,
     brand: product.brand,
-    unit: "1",
+    unit: "pcs",
     supplier_id: null,
     supplier_name: null,
     rack_location: null,
@@ -643,7 +644,9 @@ export async function deleteProductEntry(
 ): Promise<{ error: string | null }> {
   if (await isFlatRegister(supabase)) {
     const { error } = await supabase.from("products").delete().eq("id", productId);
-    return { error: error?.message ?? null };
+    if (error) return { error: error.message };
+    await cleanupOrphanedPurchaseOrderSales(supabase).catch(() => {});
+    return { error: null };
   }
 
   const { error: batchError } = await supabase
@@ -664,6 +667,8 @@ export async function deleteProductEntry(
     if (error) return { error: error.message };
   }
 
+  await cleanupOrphanedPurchaseOrderSales(supabase).catch(() => {});
+
   return { error: null };
 }
 
@@ -681,7 +686,7 @@ export function parseProductEntryBody(body: Record<string, unknown>) {
       new Date().toISOString().slice(0, 10),
     product_name: String(body.product_name ?? "").trim(),
     brand: String(body.brand ?? "").trim(),
-    unit: String(parseUnitPieces(body.unit) ?? 1),
+    unit: normalizeProductUom(body.unit) ?? "pcs",
     supplier_id: supplierId || null,
     rack_location: rack || null,
     quantity,
@@ -703,8 +708,8 @@ export function validateProductEntry(input: ProductEntryInput): string | null {
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
     return "Enter a valid whole-number quantity";
   }
-  if (parseUnitPieces(input.unit) === null) {
-    return "Enter a valid UOM (number of pieces)";
+  if (!normalizeProductUom(input.unit)) {
+    return "Select a valid unit of measure";
   }
   return null;
 }

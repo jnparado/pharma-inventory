@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { revalidateProductsPage } from "@/lib/revalidate";
+import { revalidateInventory, revalidateProductsPage } from "@/lib/revalidate";
 import { isAdmin } from "@/lib/permissions";
 import {
   deleteProductEntry,
@@ -174,6 +174,7 @@ export async function DELETE(request: Request) {
     }
 
     revalidateProductsPage();
+    revalidateInventory("dashboard", "sales", "orders");
     return NextResponse.json({
       ok: true,
       message: "Product removed",
