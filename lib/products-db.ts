@@ -88,16 +88,20 @@ const INVENTORY_SELECTS = [
 let cachedProductColumns: Set<string> | null = null;
 let cachedFlatRegister: boolean | null = null;
 let cachedInventorySelect: string | null = null;
+let cachedHasRackColumn: boolean | null = null;
 
 export function invalidateProductColumnCache(): void {
   cachedProductColumns = null;
+  cachedHasRackColumn = null;
 }
 
 export async function productTableHasRackColumn(
   supabase: SupabaseClient
 ): Promise<boolean> {
+  if (cachedHasRackColumn !== null) return cachedHasRackColumn;
   const columns = await getProductColumns(supabase);
-  return RACK_WRITE_COLUMNS.some((col) => columns.has(col));
+  cachedHasRackColumn = RACK_WRITE_COLUMNS.some((col) => columns.has(col));
+  return cachedHasRackColumn;
 }
 
 async function patchRackLocation(

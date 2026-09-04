@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SidebarPrefetch } from "@/components/sidebar-prefetch";
 
 const navItems = [
   {
@@ -93,6 +94,7 @@ function SidebarContent({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      <SidebarPrefetch />
       {!hideBrand && (
         <div className="flex shrink-0 items-center gap-2.5 px-4 py-5">
           <Link
@@ -120,6 +122,7 @@ function SidebarContent({
             <Link
               key={item.href}
               href={item.href}
+              prefetch={true}
               onClick={onNavigate}
               aria-current={active ? "page" : undefined}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${

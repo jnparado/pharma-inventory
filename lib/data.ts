@@ -2,6 +2,7 @@ import { cache } from "react";
 import { fetchCustomers, fetchCustomerById } from "@/lib/customers-db";
 import { fetchProductInventoryRows, isFlatRegister } from "@/lib/products-db";
 import { isSupabaseConfigured } from "@/lib/env";
+import { CACHE_TAGS, cachedQuery } from "@/lib/query-cache";
 import { getSalesMetrics } from "@/lib/sales-metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -54,96 +55,118 @@ export async function getCategories(): Promise<Category[]> {
   return data;
 }
 
-export const getProductsWithStock = cache(async (): Promise<ProductWithStock[]> => {
-  try {
-    const supabase = createAdminClient();
+export const getProductsWithStock = cache(
+  cachedQuery(
+    ["products-with-stock"],
+    async (): Promise<ProductWithStock[]> => {
+      try {
+        const supabase = createAdminClient();
 
-    const [productsResInitial, batchesRes] = await Promise.all([
-      supabase
-        .from("products")
-        .select("*, categories(name)")
-        .order("product_name"),
-      supabase
-        .from("product_batches")
-        .select("product_id, quantity_remaining, expiry_date"),
-    ]);
+        const [productsResInitial, batchesRes] = await Promise.all([
+          supabase
+            .from("products")
+            .select("*, categories(name)")
+            .order("product_name"),
+          supabase
+            .from("product_batches")
+            .select("product_id, quantity_remaining, expiry_date"),
+        ]);
 
-    let productsRes = productsResInitial;
-    if (productsRes.error) {
-      productsRes = await supabase
-        .from("products")
-        .select("*")
-        .order("product_name");
-    }
-    if (productsRes.error) {
-      console.error("Failed to load products:", productsRes.error.message);
-      return [];
-    }
-
-    const stockByProduct = new Map<
-      string,
-      { total: number; nearestExpiry: string | null }
-    >();
-
-    if (!batchesRes.error) {
-      for (const batch of batchesRes.data ?? []) {
-        if (!batch.product_id) continue;
-        const qty = batch.quantity_remaining ?? 0;
-        const entry = stockByProduct.get(batch.product_id) ?? {
-          total: 0,
-          nearestExpiry: null,
-        };
-        entry.total += qty;
-        if (
-          qty > 0 &&
-          batch.expiry_date &&
-          (entry.nearestExpiry === null || batch.expiry_date < entry.nearestExpiry)
-        ) {
-          entry.nearestExpiry = batch.expiry_date;
+        let productsRes = productsResInitial;
+        if (productsRes.error) {
+          productsRes = await supabase
+            .from("products")
+            .select("*")
+            .order("product_name");
         }
-        stockByProduct.set(batch.product_id, entry);
+        if (productsRes.error) {
+          console.error("Failed to load products:", productsRes.error.message);
+          return [];
+        }
+
+        const stockByProduct = new Map<
+          string,
+          { total: number; nearestExpiry: string | null }
+        >();
+
+        if (!batchesRes.error) {
+          for (const batch of batchesRes.data ?? []) {
+            if (!batch.product_id) continue;
+            const qty = batch.quantity_remaining ?? 0;
+            const entry = stockByProduct.get(batch.product_id) ?? {
+              total: 0,
+              nearestExpiry: null,
+            };
+            entry.total += qty;
+            if (
+              qty > 0 &&
+              batch.expiry_date &&
+              (entry.nearestExpiry === null ||
+                batch.expiry_date < entry.nearestExpiry)
+            ) {
+              entry.nearestExpiry = batch.expiry_date;
+            }
+            stockByProduct.set(batch.product_id, entry);
+          }
+        }
+
+        return (productsRes.data as unknown as ProductWithStock[]).map(
+          (product) => {
+            const batchStock = stockByProduct.get(product.id);
+            const flatQty = Number(
+              (product as ProductWithStock & { quantity?: number }).quantity ?? 0
+            );
+            const entry = batchStock ?? {
+              total: flatQty,
+              nearestExpiry:
+                (product as ProductWithStock & { expiry_date?: string | null })
+                  .expiry_date ??
+                (product as ProductWithStock & { exp_date?: string | null })
+                  .exp_date ??
+                null,
+            };
+            return {
+              ...product,
+              total_stock: entry.total,
+              nearest_expiry: entry.nearestExpiry,
+            };
+          }
+        );
+      } catch (e) {
+        console.error("getProductsWithStock:", e);
+        return [];
       }
-    }
+    },
+    [CACHE_TAGS.products, CACHE_TAGS.inventory]
+  )
+);
 
-    return (productsRes.data as unknown as ProductWithStock[]).map((product) => {
-      const batchStock = stockByProduct.get(product.id);
-      const flatQty = Number(
-        (product as ProductWithStock & { quantity?: number }).quantity ?? 0
-      );
-      const entry = batchStock ?? {
-        total: flatQty,
-        nearestExpiry:
-          (product as ProductWithStock & { expiry_date?: string | null })
-            .expiry_date ??
-          (product as ProductWithStock & { exp_date?: string | null }).exp_date ??
-          null,
-      };
-      return {
-        ...product,
-        total_stock: entry.total,
-        nearest_expiry: entry.nearestExpiry,
-      };
-    });
-  } catch (e) {
-    console.error("getProductsWithStock:", e);
-    return [];
-  }
-});
+export const getSuppliers = cache(
+  cachedQuery(
+    ["suppliers"],
+    async (): Promise<Supplier[]> => {
+      const supabase = createAdminClient();
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select("*")
+        .order("company_name");
+      if (error) throw new Error(`Failed to load suppliers: ${error.message}`);
+      return data;
+    },
+    [CACHE_TAGS.suppliers]
+  )
+);
 
-export const getSuppliers = cache(async (): Promise<Supplier[]> => {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("suppliers")
-    .select("*")
-    .order("company_name");
-  if (error) throw new Error(`Failed to load suppliers: ${error.message}`);
-  return data;
-});
-
-export const getCustomers = cache(async (): Promise<Customer[]> => {
-  const supabase = createAdminClient();
-  return fetchCustomers(supabase);
-});
+export const getCustomers = cache(
+  cachedQuery(
+    ["customers"],
+    async (): Promise<Customer[]> => {
+      const supabase = createAdminClient();
+      return fetchCustomers(supabase);
+    },
+    [CACHE_TAGS.customers]
+  )
+);
 
 export async function getProductById(id: string): Promise<Product | null> {
   const supabase = createAdminClient();
@@ -156,10 +179,16 @@ export async function getProductById(id: string): Promise<Product | null> {
   return data;
 }
 
-export const getProductInventoryLines = cache(async (): Promise<ProductInventoryLine[]> => {
-  const supabase = createAdminClient();
-  return fetchProductInventoryRows(supabase);
-});
+export const getProductInventoryLines = cache(
+  cachedQuery(
+    ["product-inventory-lines"],
+    async (): Promise<ProductInventoryLine[]> => {
+      const supabase = createAdminClient();
+      return fetchProductInventoryRows(supabase);
+    },
+    [CACHE_TAGS.inventory, CACHE_TAGS.products]
+  )
+);
 
 export async function getProductInventoryLineByBatchId(
   batchId: string
@@ -286,34 +315,46 @@ async function getBatchesFromProductBatchesTable(
 export const getExpiringBatches = cache(async (
   limit: number
 ): Promise<BatchWithProduct[]> => {
-  const supabase = createAdminClient();
+  return cachedQuery(
+    ["expiring-batches", String(limit)],
+    async () => {
+      const supabase = createAdminClient();
 
-  if (await isFlatRegister(supabase)) {
-    return filterExpiringBatches(await getBatchesFromFlatProducts(supabase), limit);
-  }
-
-  const batchLimit = Math.max(limit * 4, 24);
-  for (const select of BATCH_WITH_PRODUCT_SELECTS) {
-    const { data, error } = await supabase
-      .from("product_batches")
-      .select(select)
-      .gt("quantity_remaining", 0)
-      .not("expiry_date", "is", null)
-      .order("expiry_date", { ascending: true })
-      .limit(batchLimit);
-
-    if (!error) {
-      const rows = normalizeBatchRows(data ?? []);
-      if (rows.length > 0) {
-        return filterExpiringBatches(rows, limit);
+      if (await isFlatRegister(supabase)) {
+        return filterExpiringBatches(
+          await getBatchesFromFlatProducts(supabase),
+          limit
+        );
       }
-      break;
-    }
 
-    if (!isSchemaError(error.message)) break;
-  }
+      const batchLimit = Math.max(limit * 4, 24);
+      for (const select of BATCH_WITH_PRODUCT_SELECTS) {
+        const { data, error } = await supabase
+          .from("product_batches")
+          .select(select)
+          .gt("quantity_remaining", 0)
+          .not("expiry_date", "is", null)
+          .order("expiry_date", { ascending: true })
+          .limit(batchLimit);
 
-  return filterExpiringBatches(await getBatchesFromFlatProducts(supabase), limit);
+        if (!error) {
+          const rows = normalizeBatchRows(data ?? []);
+          if (rows.length > 0) {
+            return filterExpiringBatches(rows, limit);
+          }
+          break;
+        }
+
+        if (!isSchemaError(error.message)) break;
+      }
+
+      return filterExpiringBatches(
+        await getBatchesFromFlatProducts(supabase),
+        limit
+      );
+    },
+    [CACHE_TAGS.inventory, CACHE_TAGS.products]
+  )();
 });
 
 function filterExpiringBatches(
@@ -352,36 +393,42 @@ export async function getBatches(): Promise<BatchWithProduct[]> {
 export const getTransactions = cache(async (
   limit = 100
 ): Promise<TransactionWithProduct[]> => {
-  const supabase = createAdminClient();
+  return cachedQuery(
+    ["inventory-transactions", String(limit)],
+    async () => {
+      const supabase = createAdminClient();
 
-  for (const select of TRANSACTION_SELECTS) {
-    const { data, error } = await supabase
-      .from("inventory_transactions")
-      .select(select)
-      .order("created_at", { ascending: false })
-      .limit(limit);
+      for (const select of TRANSACTION_SELECTS) {
+        const { data, error } = await supabase
+          .from("inventory_transactions")
+          .select(select)
+          .order("created_at", { ascending: false })
+          .limit(limit);
 
-    if (!error) {
-      return (data ?? []).map((row) => {
-        const tx = row as unknown as TransactionWithProduct & {
-          products?: Record<string, unknown> | null;
-        };
-        const normalized = normalizeJoinedProduct(tx.products ?? null);
-        if (normalized) {
-          tx.products = {
-            product_name: normalized.product_name,
-            sku: normalized.sku,
-            unit: normalized.unit,
-          };
+        if (!error) {
+          return (data ?? []).map((row) => {
+            const tx = row as unknown as TransactionWithProduct & {
+              products?: Record<string, unknown> | null;
+            };
+            const normalized = normalizeJoinedProduct(tx.products ?? null);
+            if (normalized) {
+              tx.products = {
+                product_name: normalized.product_name,
+                sku: normalized.sku,
+                unit: normalized.unit,
+              };
+            }
+            return tx as TransactionWithProduct;
+          });
         }
-        return tx as TransactionWithProduct;
-      });
-    }
 
-    if (!isSchemaError(error.message)) break;
-  }
+        if (!isSchemaError(error.message)) break;
+      }
 
-  return [];
+      return [];
+    },
+    [CACHE_TAGS.transactions, CACHE_TAGS.inventory]
+  )();
 });
 
 export async function getProductByCode(code: string) {
@@ -586,15 +633,21 @@ export async function getUsers(): Promise<User[]> {
 }
 
 export const getNotifications = cache(async (limit = 15): Promise<Notification[]> => {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("notifications")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) {
-    console.error("Failed to load notifications:", error.message);
-    return [];
-  }
-  return data;
+  return cachedQuery(
+    ["notifications", String(limit)],
+    async () => {
+      const supabase = createAdminClient();
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) {
+        console.error("Failed to load notifications:", error.message);
+        return [];
+      }
+      return data;
+    },
+    [CACHE_TAGS.notifications]
+  )();
 });

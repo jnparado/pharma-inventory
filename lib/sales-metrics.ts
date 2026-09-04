@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { CACHE_TAGS, cachedQuery } from "@/lib/query-cache";
 import {
   isSchemaError,
   SALE_WITH_ITEMS_SELECTS,
@@ -83,49 +84,61 @@ function computeSalesSummary(sales: SaleWithItems[]): SalesReportSummary {
 }
 
 /** Lightweight sales rows for dashboard KPIs and charts (no line items). */
-export const getSalesAnalytics = cache(async (): Promise<SaleWithItems[]> => {
-  const supabase = createAdminClient();
+export const getSalesAnalytics = cache(
+  cachedQuery(
+    ["sales-analytics"],
+    async (): Promise<SaleWithItems[]> => {
+      const supabase = createAdminClient();
 
-  for (const select of SALE_ANALYTICS_SELECTS) {
-    const { data, error } = await supabase
-      .from("sales")
-      .select(select)
-      .order("created_at", { ascending: false })
-      .limit(365);
+      for (const select of SALE_ANALYTICS_SELECTS) {
+        const { data, error } = await supabase
+          .from("sales")
+          .select(select)
+          .order("created_at", { ascending: false })
+          .limit(365);
 
-    if (!error) {
-      return (data ?? []) as unknown as SaleWithItems[];
-    }
-    if (!isSchemaError(error.message)) break;
-  }
+        if (!error) {
+          return (data ?? []) as unknown as SaleWithItems[];
+        }
+        if (!isSchemaError(error.message)) break;
+      }
 
-  return [];
-});
+      return [];
+    },
+    [CACHE_TAGS.sales, CACHE_TAGS.dashboard]
+  )
+);
 
 /** Full sales fetch with line items — used by reports. */
-export const getSalesMetrics = cache(async () => {
-  const supabase = createAdminClient();
+export const getSalesMetrics = cache(
+  cachedQuery(
+    ["sales-metrics"],
+    async () => {
+      const supabase = createAdminClient();
 
-  for (const select of SALE_WITH_ITEMS_SELECTS) {
-    const { data, error } = await supabase
-      .from("sales")
-      .select(select)
-      .order("created_at", { ascending: false })
-      .limit(200);
+      for (const select of SALE_WITH_ITEMS_SELECTS) {
+        const { data, error } = await supabase
+          .from("sales")
+          .select(select)
+          .order("created_at", { ascending: false })
+          .limit(200);
 
-    if (!error) {
-      const sales = (data ?? []) as unknown as SaleWithItems[];
+        if (!error) {
+          const sales = (data ?? []) as unknown as SaleWithItems[];
+          return {
+            sales,
+            summary: computeSalesSummary(sales),
+          };
+        }
+
+        if (!isSchemaError(error.message)) break;
+      }
+
       return {
-        sales,
-        summary: computeSalesSummary(sales),
+        sales: [] as SaleWithItems[],
+        summary: computeSalesSummary([]),
       };
-    }
-
-    if (!isSchemaError(error.message)) break;
-  }
-
-  return {
-    sales: [] as SaleWithItems[],
-    summary: computeSalesSummary([]),
-  };
-});
+    },
+    [CACHE_TAGS.sales]
+  )
+);
