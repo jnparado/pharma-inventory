@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { buttonClass, inputClass, labelClass } from "@/components/ui";
@@ -217,19 +216,12 @@ export function PurchaseOrderDialog({
                   )}
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <Link
-                    href={`/orders/${success.poId}`}
-                    className={buttonClass}
-                    onClick={() => setOpen(false)}
-                  >
-                    View &amp; print PO
-                  </Link>
                   <button
                     type="button"
                     onClick={closeDialog}
-                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    className={buttonClass}
                   >
-                    Close
+                    Done
                   </button>
                 </div>
               </div>

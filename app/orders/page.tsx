@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   PurchaseOrderDialog,
   type PoProductOption,
@@ -145,12 +144,6 @@ export default async function OrdersPage({
                       )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/orders/${po.id}`}
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        View &amp; print
-                      </Link>
                       <Badge
                         tone={
                           po.status === "approved" || po.status === "delivered"

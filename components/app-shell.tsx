@@ -58,6 +58,16 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, closeMenu]);
 
+  useEffect(() => {
+    function onResize() {
+      if (window.matchMedia("(min-width: 768px)").matches) {
+        closeMenu();
+      }
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [closeMenu]);
+
   const value: MobileNavContextValue = {
     open,
     openMenu,
@@ -68,15 +78,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <MobileNavContext.Provider value={value}>
       <RouteChangeCloser onClose={closeMenu} />
-      <div className="flex min-h-screen">
-        {/* Desktop sidebar */}
-        <aside className="fixed inset-y-0 left-0 z-30 hidden w-52 flex-col border-r border-slate-700/80 bg-slate-800 md:flex">
+      <div className="min-h-screen md:grid md:grid-cols-[13rem_minmax(0,1fr)]">
+        {/* Desktop sidebar — in document flow so main content cannot block clicks */}
+        <aside className="hidden min-h-screen border-r border-slate-700/80 bg-slate-800 md:sticky md:top-0 md:flex md:h-screen md:flex-col md:overflow-hidden">
           <SidebarContent />
         </aside>
 
         {/* Mobile drawer */}
         <div
-          className={`fixed inset-0 z-40 md:hidden ${open ? "pointer-events-auto" : "pointer-events-none"}`}
+          className={`fixed inset-0 z-50 md:hidden ${open ? "pointer-events-auto" : "pointer-events-none"}`}
           aria-hidden={!open}
         >
           <button
@@ -89,7 +99,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             tabIndex={open ? 0 : -1}
           />
           <aside
-            className={`absolute inset-y-0 left-0 flex w-[min(100vw,18rem)] flex-col border-r border-slate-700/80 bg-slate-800 shadow-xl transition-transform duration-300 ease-out ${
+            className={`absolute inset-y-0 left-0 flex h-full w-[min(100vw,18rem)] flex-col border-r border-slate-700/80 bg-slate-800 shadow-xl transition-transform duration-300 ease-out ${
               open ? "translate-x-0" : "-translate-x-full"
             }`}
           >
@@ -117,9 +127,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </aside>
         </div>
 
-        <div className="flex min-h-screen min-w-0 flex-1 flex-col md:pl-52">
-          {children}
-        </div>
+        <div className="flex min-h-screen min-w-0 flex-col">{children}</div>
       </div>
     </MobileNavContext.Provider>
   );

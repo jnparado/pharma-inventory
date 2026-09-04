@@ -47,15 +47,20 @@ const navItems = [
   {
     href: "/settings",
     label: "Settings",
-    icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z",
+    icon: [
+      "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z",
+      "M15 12a3 3 0 11-6 0 3 3 0 016 0z",
+    ],
   },
 ];
 
 function isActive(pathname: string, href: string) {
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function Icon({ d }: { d: string }) {
+function Icon({ d }: { d: string | string[] }) {
+  const paths = Array.isArray(d) ? d : [d];
   return (
     <svg
       className="h-5 w-5 shrink-0"
@@ -63,8 +68,16 @@ function Icon({ d }: { d: string }) {
       viewBox="0 0 24 24"
       stroke="currentColor"
       strokeWidth={1.6}
+      aria-hidden
     >
-      <path strokeLinecap="round" strokeLinejoin="round" d={d} />
+      {paths.map((path) => (
+        <path
+          key={path}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d={path}
+        />
+      ))}
     </svg>
   );
 }
@@ -79,20 +92,27 @@ function SidebarContent({
   const pathname = usePathname();
 
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-col">
       {!hideBrand && (
-        <div className="flex items-center gap-2.5 px-4 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-600 text-sm font-bold text-white">
-            Rx
-          </div>
-          <span className="text-base font-semibold text-white">
-            PharmaStock
-          </span>
+        <div className="flex shrink-0 items-center gap-2.5 px-4 py-5">
+          <Link
+            href="/"
+            onClick={onNavigate}
+            className="flex items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-600 text-sm font-bold text-white">
+              Rx
+            </div>
+            <span className="text-base font-semibold text-white">
+              PharmaStock
+            </span>
+          </Link>
         </div>
       )}
 
       <nav
-        className={`flex-1 space-y-0.5 overflow-y-auto px-3 pb-6 ${hideBrand ? "pt-3" : ""}`}
+        aria-label="Main navigation"
+        className={`min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-3 pb-6 ${hideBrand ? "pt-3" : ""}`}
       >
         {navItems.map((item) => {
           const active = isActive(pathname, item.href);
@@ -101,6 +121,7 @@ function SidebarContent({
               key={item.href}
               href={item.href}
               onClick={onNavigate}
+              aria-current={active ? "page" : undefined}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 active
                   ? "bg-teal-500/20 text-teal-300"
@@ -113,15 +134,7 @@ function SidebarContent({
           );
         })}
       </nav>
-    </>
-  );
-}
-
-export function Sidebar() {
-  return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-52 flex-col border-r border-slate-700/80 bg-slate-800 md:flex">
-      <SidebarContent />
-    </aside>
+    </div>
   );
 }
 

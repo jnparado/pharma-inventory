@@ -176,11 +176,6 @@ export function StockWorkspace({
                   </option>
                 ))}
               </select>
-              {selectedInProduct && (
-                <p className="mt-1.5 text-sm text-slate-500">
-                  UOM: {formatProductUom(selectedInProduct.unit)}
-                </p>
-              )}
             </div>
             <div>
               <label className={labelClass} htmlFor="in-batch">
@@ -206,19 +201,37 @@ export function StockWorkspace({
                 className={inputClass}
               />
             </div>
-            <div>
-              <label className={labelClass} htmlFor="in-qty">
-                Quantity
-              </label>
-              <input
-                id="in-qty"
-                name="quantity"
-                type="number"
-                min={1}
-                required
-                placeholder="How many?"
-                className={inputClass}
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelClass} htmlFor="in-qty">
+                  Quantity
+                </label>
+                <input
+                  id="in-qty"
+                  name="quantity"
+                  type="number"
+                  min={1}
+                  required
+                  placeholder="How many?"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass} htmlFor="in-uom">
+                  UOM
+                </label>
+                <input
+                  id="in-uom"
+                  value={
+                    selectedInProduct
+                      ? formatProductUom(selectedInProduct.unit)
+                      : ""
+                  }
+                  readOnly
+                  placeholder="Select a product"
+                  className={`${inputClass} bg-slate-50 text-slate-500`}
+                />
+              </div>
             </div>
             <div>
               <label className={labelClass} htmlFor="in-cost">
@@ -338,22 +351,40 @@ export function StockWorkspace({
                 </p>
               )}
             </div>
-            <div>
-              <label className={labelClass} htmlFor="out-qty">
-                Quantity
-              </label>
-              <input
-                id="out-qty"
-                name="quantity"
-                type="number"
-                min={1}
-                max={selectedOutProduct?.total_stock || undefined}
-                required
-                value={outQty}
-                onChange={(e) => setOutQty(e.target.value)}
-                placeholder="How many?"
-                className={inputClass}
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelClass} htmlFor="out-qty">
+                  Quantity
+                </label>
+                <input
+                  id="out-qty"
+                  name="quantity"
+                  type="number"
+                  min={1}
+                  max={selectedOutProduct?.total_stock || undefined}
+                  required
+                  value={outQty}
+                  onChange={(e) => setOutQty(e.target.value)}
+                  placeholder="How many?"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass} htmlFor="out-uom">
+                  UOM
+                </label>
+                <input
+                  id="out-uom"
+                  value={
+                    selectedOutProduct
+                      ? formatProductUom(selectedOutProduct.unit)
+                      : ""
+                  }
+                  readOnly
+                  placeholder="Select a product"
+                  className={`${inputClass} bg-slate-50 text-slate-500`}
+                />
+              </div>
             </div>
             <div>
               <label className={labelClass} htmlFor="out-price">
@@ -440,6 +471,9 @@ export function StockWorkspace({
                     <span className="tabular-nums font-medium text-slate-700">
                       {isIn ? "+" : "−"}
                       {t.quantity}
+                      {t.products?.unit
+                        ? ` ${formatProductUom(t.products.unit)}`
+                        : ""}
                     </span>
                   </div>
                 </li>
