@@ -15,7 +15,7 @@ import {
   StatCard,
 } from "@/components/ui";
 
-export const dynamic = "force-dynamic";
+
 
 const statusTone = {
   ok: "success",

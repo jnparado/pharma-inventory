@@ -1,12 +1,13 @@
+import { after } from "next/server";
 import Link from "next/link";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { KpiCard } from "@/components/kpi-card";
 import { SetupNotice, TableScroll } from "@/components/ui";
 import { getDashboardData } from "@/lib/dashboard";
 import { isSupabaseConfigured } from "@/lib/data";
+import { syncSystemNotifications } from "@/lib/notifications";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
-export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   if (!isSupabaseConfigured()) {
@@ -17,6 +18,10 @@ export default async function DashboardPage() {
       </div>
     );
   }
+
+  after(() => {
+    syncSystemNotifications().catch(() => {});
+  });
 
   const data = await getDashboardData();
 

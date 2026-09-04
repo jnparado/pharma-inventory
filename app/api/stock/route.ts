@@ -5,6 +5,17 @@ import { issueReceiptForSale } from "@/lib/receipt";
 import { revalidateInventory } from "@/lib/revalidate";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getActiveUser } from "@/lib/user-session";
+import { normalizeProductUom } from "@/lib/utils";
+
+async function syncProductUnit(
+  supabase: ReturnType<typeof createAdminClient>,
+  productId: string,
+  unit: unknown
+) {
+  const normalized = normalizeProductUom(unit);
+  if (!normalized) return;
+  await supabase.from("products").update({ unit: normalized }).eq("id", productId);
+}
 
 export async function POST(request: Request) {
   const user = await getActiveUser();
@@ -66,7 +77,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: txError.message }, { status: 400 });
       }
 
-      revalidateInventory("stock");
+      await syncProductUnit(supabase, productId, body.unit);
+
+      revalidateInventory("stock", "products");
       return NextResponse.json({ ok: true, message: "Stock received" });
     }
 
@@ -158,7 +171,9 @@ export async function POST(request: Request) {
           // Receipt issuing is best-effort; the sale itself is recorded.
         }
 
-        revalidateInventory("stock");
+        await syncProductUnit(supabase, productId, body.unit);
+
+        revalidateInventory("stock", "products");
         return NextResponse.json({
           ok: true,
           sale_id: sale.id,
@@ -178,7 +193,9 @@ export async function POST(request: Request) {
         );
       }
 
-      revalidateInventory("stock");
+      await syncProductUnit(supabase, productId, body.unit);
+
+      revalidateInventory("stock", "products");
       return NextResponse.json({ ok: true, message: "Stock dispensed (FIFO)" });
     }
 

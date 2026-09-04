@@ -7,6 +7,7 @@ import { isAdmin } from "@/lib/permissions";
 import { getActiveUser, getAuthEmail } from "@/lib/user-session";
 import { getInitials } from "@/lib/utils";
 
+
 export default async function SettingsPage() {
   if (!isSupabaseConfigured()) {
     return (

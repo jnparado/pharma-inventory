@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ShellGate } from "@/components/shell-gate";
+import { TopBarSkeleton } from "@/components/top-bar-skeleton";
 import { TopBarWrapper } from "@/components/top-bar-wrapper";
 import "./globals.css";
 
@@ -36,7 +38,15 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full overflow-x-hidden bg-slate-50 font-sans text-slate-900">
-        <ShellGate topBar={<TopBarWrapper />}>{children}</ShellGate>
+        <ShellGate
+          topBar={
+            <Suspense fallback={<TopBarSkeleton />}>
+              <TopBarWrapper />
+            </Suspense>
+          }
+        >
+          {children}
+        </ShellGate>
       </body>
     </html>
   );

@@ -13,7 +13,7 @@ import {
   StatCard,
 } from "@/components/ui";
 
-export const dynamic = "force-dynamic";
+
 
 export default async function ReportsPage() {
   if (!isSupabaseConfigured()) {

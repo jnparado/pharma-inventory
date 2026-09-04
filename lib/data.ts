@@ -57,11 +57,18 @@ export async function getCategories(): Promise<Category[]> {
 export const getProductsWithStock = cache(async (): Promise<ProductWithStock[]> => {
   try {
     const supabase = createAdminClient();
-    let productsRes = await supabase
-      .from("products")
-      .select("*, categories(name)")
-      .order("product_name");
 
+    const [productsResInitial, batchesRes] = await Promise.all([
+      supabase
+        .from("products")
+        .select("*, categories(name)")
+        .order("product_name"),
+      supabase
+        .from("product_batches")
+        .select("product_id, quantity_remaining, expiry_date"),
+    ]);
+
+    let productsRes = productsResInitial;
     if (productsRes.error) {
       productsRes = await supabase
         .from("products")
@@ -72,10 +79,6 @@ export const getProductsWithStock = cache(async (): Promise<ProductWithStock[]> 
       console.error("Failed to load products:", productsRes.error.message);
       return [];
     }
-
-    const batchesRes = await supabase
-      .from("product_batches")
-      .select("product_id, quantity_remaining, expiry_date");
 
     const stockByProduct = new Map<
       string,
@@ -127,7 +130,7 @@ export const getProductsWithStock = cache(async (): Promise<ProductWithStock[]> 
   }
 });
 
-export async function getSuppliers(): Promise<Supplier[]> {
+export const getSuppliers = cache(async (): Promise<Supplier[]> => {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("suppliers")
@@ -135,12 +138,12 @@ export async function getSuppliers(): Promise<Supplier[]> {
     .order("company_name");
   if (error) throw new Error(`Failed to load suppliers: ${error.message}`);
   return data;
-}
+});
 
-export async function getCustomers(): Promise<Customer[]> {
+export const getCustomers = cache(async (): Promise<Customer[]> => {
   const supabase = createAdminClient();
   return fetchCustomers(supabase);
-}
+});
 
 export async function getProductById(id: string): Promise<Product | null> {
   const supabase = createAdminClient();
@@ -153,10 +156,10 @@ export async function getProductById(id: string): Promise<Product | null> {
   return data;
 }
 
-export async function getProductInventoryLines(): Promise<ProductInventoryLine[]> {
+export const getProductInventoryLines = cache(async (): Promise<ProductInventoryLine[]> => {
   const supabase = createAdminClient();
   return fetchProductInventoryRows(supabase);
-}
+});
 
 export async function getProductInventoryLineByBatchId(
   batchId: string
@@ -280,9 +283,9 @@ async function getBatchesFromProductBatchesTable(
   return null;
 }
 
-export async function getExpiringBatches(
+export const getExpiringBatches = cache(async (
   limit: number
-): Promise<BatchWithProduct[]> {
+): Promise<BatchWithProduct[]> => {
   const supabase = createAdminClient();
 
   if (await isFlatRegister(supabase)) {
@@ -311,7 +314,7 @@ export async function getExpiringBatches(
   }
 
   return filterExpiringBatches(await getBatchesFromFlatProducts(supabase), limit);
-}
+});
 
 function filterExpiringBatches(
   batches: BatchWithProduct[],
@@ -346,9 +349,9 @@ export async function getBatches(): Promise<BatchWithProduct[]> {
   return getBatchesFromFlatProducts(supabase);
 }
 
-export async function getTransactions(
+export const getTransactions = cache(async (
   limit = 100
-): Promise<TransactionWithProduct[]> {
+): Promise<TransactionWithProduct[]> => {
   const supabase = createAdminClient();
 
   for (const select of TRANSACTION_SELECTS) {
@@ -379,7 +382,7 @@ export async function getTransactions(
   }
 
   return [];
-}
+});
 
 export async function getProductByCode(code: string) {
   const supabase = createAdminClient();
@@ -582,7 +585,7 @@ export async function getUsers(): Promise<User[]> {
   return data;
 }
 
-export async function getNotifications(limit = 15): Promise<Notification[]> {
+export const getNotifications = cache(async (limit = 15): Promise<Notification[]> => {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("notifications")
@@ -594,4 +597,4 @@ export async function getNotifications(limit = 15): Promise<Notification[]> {
     return [];
   }
   return data;
-}
+});

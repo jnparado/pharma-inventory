@@ -1,5 +1,4 @@
 import { getNotifications, isSupabaseConfigured } from "@/lib/data";
-import { syncSystemNotifications } from "@/lib/notifications";
 import { getActiveUser } from "@/lib/user-session";
 import { TopBar } from "./top-bar";
 
@@ -11,7 +10,6 @@ export async function TopBarWrapper() {
   }
 
   try {
-    await syncSystemNotifications();
     const [notifications, activeUser] = await Promise.all([
       getNotifications(),
       getActiveUser(),

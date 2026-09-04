@@ -25,6 +25,7 @@ import {
   TableScroll,
 } from "@/components/ui";
 
+
 export default async function OrdersPage({
   searchParams,
 }: {

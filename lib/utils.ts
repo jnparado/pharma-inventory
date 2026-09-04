@@ -93,10 +93,10 @@ export function formatDisplayName(name: string): string {
 
 /** Standard product unit-of-measure codes (abbreviations only in UI). */
 export const PRODUCT_UOM_OPTIONS = [
-  { value: "pcs", label: "PCS" },
-  { value: "vial", label: "VIAL" },
-  { value: "box", label: "BOX" },
-  { value: "btl", label: "BTL" },
+  { value: "pcs", label: "pcs" },
+  { value: "vial", label: "vial" },
+  { value: "box", label: "box" },
+  { value: "btl", label: "btl" },
 ] as const;
 
 export type ProductUom = (typeof PRODUCT_UOM_OPTIONS)[number]["value"];

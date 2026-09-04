@@ -10,6 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { canManageRecords } from "@/lib/permissions";
 import { getActiveUser } from "@/lib/user-session";
 
+
 export default async function CustomersPage({
   searchParams,
 }: {

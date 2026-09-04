@@ -2,12 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { UomSelect } from "@/components/uom-select";
 import type {
   ProductWithStock,
   Supplier,
   TransactionWithProduct,
 } from "@/lib/types";
-import { formatCurrency, formatDateTime, formatProductUom } from "@/lib/utils";
+import {
+  formatCurrency,
+  formatDateTime,
+  formatProductUom,
+  normalizeProductUom,
+} from "@/lib/utils";
 import {
   Badge,
   Card,
@@ -42,6 +48,8 @@ export function StockWorkspace({
   const [outProductId, setOutProductId] = useState("");
   const [outQty, setOutQty] = useState("");
   const [outPrice, setOutPrice] = useState("");
+  const [inUom, setInUom] = useState("pcs");
+  const [outUom, setOutUom] = useState("pcs");
   const [mode, setMode] = useState<StockMode>("purchase");
 
   const selectedInProduct =
@@ -152,7 +160,10 @@ export function StockWorkspace({
                 e.currentTarget,
                 setStockInLoading
               );
-              if (ok) setInProductId("");
+              if (ok) {
+                setInProductId("");
+                setInUom("pcs");
+              }
             }}
           >
             <div>
@@ -165,7 +176,12 @@ export function StockWorkspace({
                 required
                 className={inputClass}
                 value={inProductId}
-                onChange={(e) => setInProductId(e.target.value)}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setInProductId(id);
+                  const product = initialProducts.find((p) => p.id === id);
+                  setInUom(normalizeProductUom(product?.unit) ?? "pcs");
+                }}
               >
                 <option value="" disabled>
                   Choose a product…
@@ -216,22 +232,12 @@ export function StockWorkspace({
                   className={inputClass}
                 />
               </div>
-              <div>
-                <label className={labelClass} htmlFor="in-uom">
-                  UOM
-                </label>
-                <input
-                  id="in-uom"
-                  value={
-                    selectedInProduct
-                      ? formatProductUom(selectedInProduct.unit)
-                      : ""
-                  }
-                  readOnly
-                  placeholder="Select a product"
-                  className={`${inputClass} bg-slate-50 text-slate-500`}
-                />
-              </div>
+              <UomSelect
+                id="in-uom"
+                required
+                value={inUom}
+                onChange={setInUom}
+              />
             </div>
             <div>
               <label className={labelClass} htmlFor="in-cost">
@@ -305,6 +311,7 @@ export function StockWorkspace({
                 setOutProductId("");
                 setOutQty("");
                 setOutPrice("");
+                setOutUom("pcs");
               }
             }}
           >
@@ -319,10 +326,10 @@ export function StockWorkspace({
                 className={inputClass}
                 value={outProductId}
                 onChange={(e) => {
-                  setOutProductId(e.target.value);
-                  const product = initialProducts.find(
-                    (p) => p.id === e.target.value
-                  );
+                  const id = e.target.value;
+                  setOutProductId(id);
+                  const product = initialProducts.find((p) => p.id === id);
+                  setOutUom(normalizeProductUom(product?.unit) ?? "pcs");
                   setOutPrice(
                     product ? String(product.selling_price ?? "") : ""
                   );
@@ -369,22 +376,12 @@ export function StockWorkspace({
                   className={inputClass}
                 />
               </div>
-              <div>
-                <label className={labelClass} htmlFor="out-uom">
-                  UOM
-                </label>
-                <input
-                  id="out-uom"
-                  value={
-                    selectedOutProduct
-                      ? formatProductUom(selectedOutProduct.unit)
-                      : ""
-                  }
-                  readOnly
-                  placeholder="Select a product"
-                  className={`${inputClass} bg-slate-50 text-slate-500`}
-                />
-              </div>
+              <UomSelect
+                id="out-uom"
+                required
+                value={outUom}
+                onChange={setOutUom}
+              />
             </div>
             <div>
               <label className={labelClass} htmlFor="out-price">

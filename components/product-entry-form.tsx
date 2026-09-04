@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { buttonClass, inputClass, labelClass } from "@/components/ui";
+import { UomSelect } from "@/components/uom-select";
 import type { ProductInventoryLine, Supplier } from "@/lib/types";
-import { PRODUCT_UOM_OPTIONS, normalizeProductUom } from "@/lib/utils";
+import { normalizeProductUom } from "@/lib/utils";
 
 type ProductEntry = {
   entry_date: string | null;
@@ -74,38 +75,27 @@ function ProductFields({
           className={inputClass}
         />
       </div>
-      <div>
-        <label className={labelClass} htmlFor="unit">
-          Unit of measure <span className="text-red-500">*</span>
-        </label>
-        <select
+      <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
+        <div>
+          <label className={labelClass} htmlFor="quantity">
+            Quantity <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="quantity"
+            name="quantity"
+            type="number"
+            min={1}
+            step={1}
+            required
+            defaultValue={editing?.quantity ?? ""}
+            placeholder="100"
+            className={inputClass}
+          />
+        </div>
+        <UomSelect
           id="unit"
-          name="unit"
           required
           defaultValue={normalizeProductUom(editing?.unit) ?? "pcs"}
-          className={inputClass}
-        >
-          {PRODUCT_UOM_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className={labelClass} htmlFor="quantity">
-          Quantity <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="quantity"
-          name="quantity"
-          type="number"
-          min={1}
-          step={1}
-          required
-          defaultValue={editing?.quantity ?? ""}
-          placeholder="100"
-          className={inputClass}
         />
       </div>
       <div>

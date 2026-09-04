@@ -7,6 +7,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/data";
 
+
 export default async function StockPage({
   searchParams,
 }: {

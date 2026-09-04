@@ -378,8 +378,7 @@ export function PurchaseOrderDialog({
                 ) : (
                   <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                     Creates one PO for all products at or below their reorder level.
-                    Suggested quantities are calculated automatically. You can print the
-                    PO after it is created.
+                    Suggested quantities are calculated automatically.
                   </div>
                 )}
 

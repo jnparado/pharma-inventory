@@ -76,7 +76,10 @@ const RACK_WRITE_COLUMNS = [
 ] as const;
 
 const INVENTORY_SELECTS = [
-  "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, received_date, created_at, products(product_name, brand_name, selling_price, selling_price_ws)",
+  "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, received_date, created_at, products(product_name, brand_name, unit, selling_price, selling_price_ws)",
+  "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, created_at, products(product_name, brand_name, unit, selling_price, selling_price_ws)",
+  "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, created_at, products(product_name, brand_name, unit, selling_price)",
+  "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, created_at, products(product_name, unit, selling_price)",
   "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, created_at, products(product_name, brand_name, selling_price, selling_price_ws)",
   "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, created_at, products(product_name, brand_name, selling_price)",
   "id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, created_at, products(product_name, selling_price)",
@@ -356,6 +359,7 @@ function parseProductJoin(value: unknown) {
   const product = value as {
     product_name?: string;
     brand_name?: string | null;
+    unit?: string | null;
     selling_price?: number;
     selling_price_ws?: number | null;
   } | null;
@@ -363,6 +367,7 @@ function parseProductJoin(value: unknown) {
   return {
     product_name: product?.product_name ?? "Unknown",
     brand: product?.brand_name ?? null,
+    unit: normalizeProductUom(product?.unit) ?? "pcs",
     selling_price_ws: product?.selling_price_ws ?? null,
     selling_price_retail: Number(product?.selling_price ?? 0),
   };
@@ -377,7 +382,7 @@ export function mapBatchRowToInventoryLine(row: BatchRow): ProductInventoryLine 
     entry_date: toDateInputValue(row.received_date ?? row.created_at?.slice(0, 10)) || null,
     product_name: product.product_name,
     brand: product.brand,
-    unit: "pcs",
+    unit: product.unit,
     supplier_id: null,
     supplier_name: null,
     rack_location: null,

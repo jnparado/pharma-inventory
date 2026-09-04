@@ -16,7 +16,7 @@ import {
   StatCard,
 } from "@/components/ui";
 
-export const dynamic = "force-dynamic";
+
 
 function BatchTable({
   batches,

@@ -89,13 +89,13 @@ export function ProductInventoryTable({
               <th className="pb-2 pr-3 font-medium">Product name</th>
               <th className="pb-2 pr-3 font-medium">Supplier</th>
               <th className="pb-2 pr-3 font-medium">Brand</th>
-              <th className="pb-2 pr-3 font-medium">Lot number</th>
+              <th className="pb-2 pr-3 font-medium">Lot No</th>
               <th className="pb-2 pr-3 font-medium">Exp date</th>
-              <th className="pb-2 pr-3 font-medium">Quantity</th>
+              <th className="pb-2 pr-3 font-medium">Qty</th>
               <th className="pb-2 pr-3 font-medium">UOM</th>
               <th className="pb-2 pr-3 font-medium">Cost</th>
               <th className="pb-2 pr-3 font-medium">Selling price WS</th>
-              <th className="pb-2 pr-3 font-medium">Selling price retail</th>
+              <th className="pb-2 pr-3 font-medium">Selling price Ret</th>
               <th className="pb-2 font-medium" />
             </tr>
           </thead>

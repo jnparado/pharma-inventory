@@ -8,6 +8,7 @@ import {
 import { canManageRecords } from "@/lib/permissions";
 import { getActiveUser } from "@/lib/user-session";
 
+
 export default async function SuppliersPage({
   searchParams,
 }: {

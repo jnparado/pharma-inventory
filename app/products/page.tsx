@@ -16,6 +16,7 @@ import {
   SetupNotice,
 } from "@/components/ui";
 
+
 export default async function ProductsPage({
   searchParams,
 }: {

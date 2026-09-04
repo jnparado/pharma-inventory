@@ -2,7 +2,7 @@ import { PosTerminal } from "@/components/pos-terminal";
 import { PageHeader, SetupNotice } from "@/components/ui";
 import { getProductsWithStock, isSupabaseConfigured } from "@/lib/data";
 
-export const dynamic = "force-dynamic";
+
 
 export default async function PosPage() {
   if (!isSupabaseConfigured()) {

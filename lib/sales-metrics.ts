@@ -6,6 +6,12 @@ import {
 } from "@/lib/supabase/schema-fallback";
 import type { SaleWithItems, SalesReportSummary } from "@/lib/types";
 
+const SALE_ANALYTICS_SELECTS = [
+  "id, total_amount, created_at, payment_method, invoice_number",
+  "id, total_amount, created_at, payment_method",
+  "id, total_amount, created_at",
+] as const;
+
 function computeSalesSummary(sales: SaleWithItems[]): SalesReportSummary {
   const now = new Date();
   const startOfDay = new Date(now);
@@ -76,7 +82,27 @@ function computeSalesSummary(sales: SaleWithItems[]): SalesReportSummary {
   };
 }
 
-/** One cached sales fetch shared by dashboard and reports. */
+/** Lightweight sales rows for dashboard KPIs and charts (no line items). */
+export const getSalesAnalytics = cache(async (): Promise<SaleWithItems[]> => {
+  const supabase = createAdminClient();
+
+  for (const select of SALE_ANALYTICS_SELECTS) {
+    const { data, error } = await supabase
+      .from("sales")
+      .select(select)
+      .order("created_at", { ascending: false })
+      .limit(365);
+
+    if (!error) {
+      return (data ?? []) as unknown as SaleWithItems[];
+    }
+    if (!isSchemaError(error.message)) break;
+  }
+
+  return [];
+});
+
+/** Full sales fetch with line items — used by reports. */
 export const getSalesMetrics = cache(async () => {
   const supabase = createAdminClient();
 
@@ -85,7 +111,7 @@ export const getSalesMetrics = cache(async () => {
       .from("sales")
       .select(select)
       .order("created_at", { ascending: false })
-      .limit(500);
+      .limit(200);
 
     if (!error) {
       const sales = (data ?? []) as unknown as SaleWithItems[];

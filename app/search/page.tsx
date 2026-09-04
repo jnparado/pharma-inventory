@@ -1,12 +1,7 @@
 import Link from "next/link";
 import { Badge, Card, EmptyState, PageHeader, SetupNotice, TableScroll } from "@/components/ui";
-import {
-  getCustomers,
-  getProductsWithStock,
-  getSales,
-  getSuppliers,
-  isSupabaseConfigured,
-} from "@/lib/data";
+import { isSupabaseConfigured } from "@/lib/data";
+import { searchInventory } from "@/lib/search";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -42,50 +37,17 @@ export default async function SearchPage({
     );
   }
 
-  const [products, sales, suppliers, customers] = await Promise.all([
-    getProductsWithStock().catch(() => []),
-    getSales(300).catch(() => []),
-    getSuppliers().catch(() => []),
-    getCustomers().catch(() => []),
-  ]);
-
-  const needle = query.toLowerCase();
-
-  const matchedProducts = products
-    .filter(
-      (p) =>
-        p.product_name?.toLowerCase().includes(needle) ||
-        p.sku?.toLowerCase().includes(needle) ||
-        p.barcode?.toLowerCase().includes(needle) ||
-        p.generic_name?.toLowerCase().includes(needle) ||
-        p.brand_name?.toLowerCase().includes(needle)
-    )
-    .slice(0, 20);
-
-  const matchedSales = sales
-    .filter(
-      (s) =>
-        s.invoice_number?.toLowerCase().includes(needle) ||
-        s.receipt_number?.toLowerCase().includes(needle)
-    )
-    .slice(0, 20);
-
-  const matchedSuppliers = suppliers
-    .filter(
-      (s) =>
-        s.company_name?.toLowerCase().includes(needle) ||
-        s.contact_person?.toLowerCase().includes(needle)
-    )
-    .slice(0, 10);
-
-  const matchedCustomers = customers
-    .filter(
-      (c) =>
-        c.full_name?.toLowerCase().includes(needle) ||
-        c.email?.toLowerCase().includes(needle) ||
-        c.phone?.toLowerCase().includes(needle)
-    )
-    .slice(0, 10);
+  const {
+    products: matchedProducts,
+    sales: matchedSales,
+    suppliers: matchedSuppliers,
+    customers: matchedCustomers,
+  } = await searchInventory(query).catch(() => ({
+    products: [],
+    sales: [],
+    suppliers: [],
+    customers: [],
+  }));
 
   const totalResults =
     matchedProducts.length +
